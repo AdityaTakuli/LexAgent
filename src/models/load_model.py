@@ -1,0 +1,120 @@
+# LexAgent v3.0 | load_model.py
+"""Model loading for Mistral-7B (NF4 4-bit) and Legal-BERT embedder.
+
+Mistral-7B is loaded in 4-bit NF4 quantization to fit within T4 16GB VRAM.
+Legal-BERT embedder runs on CPU or GPU.
+"""
+
+import os
+import sys
+import torch
+from typing import Tuple, Any
+
+from config import MODEL_NAME, EMBEDDER_NAME
+from src.utils.logger import get_logger
+
+logger = get_logger(__name__)
+
+
+def load_mistral_7b() -> Tuple[Any, Any, Any]:
+    """Load Mistral-7B-Instruct-v0.3 in NF4 4-bit quantization.
+    
+    Uses BitsAndBytes NF4 quantization with double quantization for
+    optimal memory efficiency on T4 16GB. Expected VRAM: ~5.2GB.
+    
+    Returns:
+        Tuple of (model, tokenizer, llm_pipeline).
+    """
+    use_mock = os.environ.get("LEXAGENT_MOCK_LLM", "0") == "1"
+
+    if not torch.cuda.is_available() and not use_mock:
+        logger.error(
+            "CUDA is not available. Mistral-7B requires a GPU. "
+            "If testing locally without GPU, set LEXAGENT_MOCK_LLM=1."
+        )
+        raise RuntimeError(
+            "CUDA not available. LexAgent requires a T4 GPU (Colab free tier) "
+            "or set LEXAGENT_MOCK_LLM=1 for CPU mock testing."
+        )
+
+    if use_mock or not torch.cuda.is_available():
+        logger.warning("Initializing Mock LLM pipeline for CPU/testing environment...")
+        class MockPipeline:
+            def __call__(self, prompt, **kwargs):
+                return [{"generated_text": (
+                    "Based on Supreme Court and CAP precedent (e.g. 410 U.S. 113), "
+                    "the applicable legal standard confirms that constitutional protections apply. "
+                    "[CITATION: Roe v. Wade, 410 U.S. 113 (1973)]"
+                )}]
+        mock_pipe = MockPipeline()
+        return None, None, mock_pipe
+
+    logger.info("CUDA available: %s", torch.cuda.get_device_name(0))
+    logger.info("Loading %s with NF4 4-bit quantization...", MODEL_NAME)
+
+    from transformers import (
+        AutoModelForCausalLM,
+        AutoTokenizer,
+        BitsAndBytesConfig,
+        pipeline,
+    )
+    from langchain_community.llms import HuggingFacePipeline
+
+    bnb_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_compute_dtype=torch.float16,
+        bnb_4bit_use_double_quant=True,
+    )
+
+    tokenizer = AutoTokenizer.from_pretrained(
+        MODEL_NAME,
+        trust_remote_code=True,
+    )
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+
+    model = AutoModelForCausalLM.from_pretrained(
+        MODEL_NAME,
+        quantization_config=bnb_config,
+        device_map="auto",
+        trust_remote_code=True,
+    )
+
+    vram_gb = torch.cuda.memory_allocated() / 1e9
+    logger.info("Model loaded. VRAM used: %.2f GB", vram_gb)
+
+    if hasattr(model, "generation_config") and model.generation_config is not None:
+        model.generation_config.max_length = None
+        model.generation_config.max_new_tokens = 768
+        if tokenizer.pad_token_id is not None:
+            model.generation_config.pad_token_id = tokenizer.pad_token_id
+    if hasattr(model, "config") and model.config is not None:
+        model.config.max_length = None
+
+    text_pipeline = pipeline(
+        "text-generation",
+        model=model,
+        tokenizer=tokenizer,
+        max_new_tokens=768,
+        temperature=0.1,
+        do_sample=True,
+        return_full_text=False,
+    )
+
+    llm_pipeline = HuggingFacePipeline(pipeline=text_pipeline)
+    logger.info("LLM pipeline ready.")
+    return model, tokenizer, llm_pipeline
+
+
+def load_embedder() -> Any:
+    """Load Legal-BERT embedder for dense retrieval."""
+    from sentence_transformers import SentenceTransformer
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    logger.info("Loading embedder: %s (on %s)...", EMBEDDER_NAME, device)
+
+    embedder = SentenceTransformer(EMBEDDER_NAME, device=device)
+    logger.info("Embedder loaded: %s (dim=%d)", EMBEDDER_NAME,
+                embedder.get_sentence_embedding_dimension())
+    return embedder
