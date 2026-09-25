@@ -42,8 +42,8 @@ def load_lexagent_components(load_llm: bool = True):
     active_path = ensure_chroma_ready(LOCAL_CHROMA_CORPUS_PATH, DRIVE_CHROMA_CORPUS_PATH)
     client = chromadb.PersistentClient(path=active_path)
     colls = [c.name for c in client.list_collections()]
-    collection_name = "cap_authorities" if "cap_authorities" in colls else colls[0]
-    collection = client.get_collection(collection_name)
+    collection_name = "cap_authorities" if ("cap_authorities" in colls or not colls) else colls[0]
+    collection = client.get_or_create_collection(collection_name)
 
     dense = DenseRetriever(collection, embedder)
     bm25 = BM25Retriever.load_index(BM25_INDEX_PATH, corpus)

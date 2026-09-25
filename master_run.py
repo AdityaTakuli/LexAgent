@@ -107,6 +107,14 @@ def step_run_ablation(limit: int = 10):
     run_ablation_study(limit=limit)
 
 
+def step_run_stress_test(output_file: str = "citation_stress_test_results.json"):
+    print("\n" + "█" * 78)
+    print("  STEP 5: RUNNING CITATION STRESS-TEST PROTOCOL (Novelty 5)")
+    print("█" * 78)
+    from experiments.run_stress_test import main as run_stress_test_main
+    run_stress_test_main(output_file=output_file)
+
+
 def step_run_all(volumes_mode: str = "landmark", benchmark_limit: int = 25, ablation_limit: int = 10):
     print("\n" + "█" * 78)
     print("  EXECUTING COMPLETE END-TO-END LEXAGENT v3.0 SUITE")
@@ -115,6 +123,7 @@ def step_run_all(volumes_mode: str = "landmark", benchmark_limit: int = 25, abla
     step_test_all_phases()
     step_run_benchmark(limit=benchmark_limit)
     step_run_ablation(limit=ablation_limit)
+    step_run_stress_test()
     print("\n" + "█" * 78)
     print("  LEXAGENT v3.0 SUITE EXECUTION 100% COMPLETE!")
     print("█" * 78)
@@ -164,11 +173,12 @@ def interactive_menu():
         print("  [2] Run Individual Phase Smoke Tests (Phase 1, Phase 2, or Phase 3)")
         print("  [3] Run 25 to 30 Cases Benchmark Evaluation (Full Scorecard & Metrics)")
         print("  [4] Run Ablation Studies (4 Variants w/o Defense, CCE, Memory, DDC)")
-        print("  [5] Run Complete End-to-End Suite (Build DB -> Tests -> Benchmark -> Ablation)")
+        print("  [5] Run Citation Stress-Test Protocol (Novelty 5: 6-Class Diagnostic)")
+        print("  [6] Run Complete End-to-End Suite (Build DB -> Tests -> Benchmark -> Ablation -> Stress Test)")
         print("  [0] Exit")
         print("-" * 78)
 
-        choice = input("  Select an option [0-5]: ").strip()
+        choice = input("  Select an option [0-6]: ").strip()
 
         if choice == "1":
             print("\n  Volume Ingestion Presets:")
@@ -190,12 +200,14 @@ def interactive_menu():
             num = int(num_str) if num_str.isdigit() else 10
             step_run_ablation(limit=num)
         elif choice == "5":
+            step_run_stress_test()
+        elif choice == "6":
             step_run_all()
         elif choice in ("0", "exit", "q"):
             print("\n  Exiting LexAgent Master Runner. Goodbye!\n")
             break
         else:
-            print("  Invalid selection. Please enter a number between 0 and 5.")
+            print("  Invalid selection. Please enter a number between 0 and 6.")
 
 
 def main():
@@ -225,16 +237,17 @@ def main():
     parser.add_argument("--benchmark-limit", type=int, default=25, help="Number of benchmark cases to evaluate (default: 25, max: 30)")
     parser.add_argument("--ablation", action="store_true", help="Run the 4-variant ablation studies")
     parser.add_argument("--ablation-limit", type=int, default=10, help="Number of cases per ablation variant (default: 10)")
+    parser.add_argument("--stress-test", action="store_true", help="Run Citation Stress-Test Protocol (Novelty 5: 6-class controlled diagnostic)")
 
     # End-to-end flag
-    parser.add_argument("--all", action="store_true", help="Run complete end-to-end pipeline (Build DB -> Tests -> Benchmark -> Ablation)")
+    parser.add_argument("--all", action="store_true", help="Run complete end-to-end pipeline (Build DB -> Tests -> Benchmark -> Ablation -> Stress Test)")
 
     args = parser.parse_args()
 
     has_flags = (
         args.build_db or args.test_phases or args.test_phase1 or
         args.test_phase2 or args.test_phase3 or args.phase is not None or
-        args.benchmark or args.ablation or args.all
+        args.benchmark or args.ablation or args.stress_test or args.all
     )
 
     if not has_flags:
@@ -270,6 +283,9 @@ def main():
 
     if args.ablation:
         step_run_ablation(limit=args.ablation_limit)
+
+    if args.stress_test:
+        step_run_stress_test()
 
 
 if __name__ == "__main__":

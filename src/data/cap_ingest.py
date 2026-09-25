@@ -32,6 +32,48 @@ from src.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
+def extract_doc_volume(doc) -> str:
+    """Robustly extract volume number string from a CorpusDocument or dict."""
+    vol = getattr(doc, "volume", None) if hasattr(doc, "volume") else (doc.get("volume") if isinstance(doc, dict) else None)
+    if isinstance(vol, dict):
+        return str(vol.get("volume_number") or vol.get("volume") or "").strip()
+    if vol:
+        s = str(vol).strip()
+        m = re.search(r"['\"]?volume_number['\"]?\s*:\s*['\"]?(\d+)['\"]?", s)
+        if m:
+            return m.group(1)
+        m = re.match(r"^\d+$", s)
+        if m:
+            return s
+    meta = getattr(doc, "metadata", {}) if hasattr(doc, "metadata") else (doc.get("metadata", {}) if isinstance(doc, dict) else {})
+    if isinstance(meta, dict):
+        m_vol = meta.get("volume")
+        if isinstance(m_vol, dict):
+            return str(m_vol.get("volume_number") or "").strip()
+        if m_vol:
+            s = str(m_vol).strip()
+            m = re.search(r"['\"]?volume_number['\"]?\s*:\s*['\"]?(\d+)['\"]?", s)
+            if m:
+                return m.group(1)
+            m = re.match(r"^\d+$", s)
+            if m:
+                return s
+        for c in meta.get("citations", []):
+            c_str = c.get("cite", "") if isinstance(c, dict) else str(c)
+            m = re.search(r"(\d+)\s+U\.?\s*S\.?", c_str, re.IGNORECASE)
+            if m:
+                return m.group(1)
+    doc_id = getattr(doc, "doc_id", "") if hasattr(doc, "doc_id") else (doc.get("doc_id", "") if isinstance(doc, dict) else "")
+    m = re.search(r"(?:vol_?|CAP_?)(\d+)", doc_id, re.IGNORECASE)
+    if m:
+        return m.group(1)
+    text_sample = f"{getattr(doc, 'case_name', '')} {getattr(doc, 'text', '')[:200]}" if hasattr(doc, "text") else ""
+    m = re.search(r"(\d+)\s+U\.?\s*S\.?", text_sample, re.IGNORECASE)
+    if m:
+        return m.group(1)
+    return ""
+
+
 def parse_volume_selection(mode_or_range: str) -> List[str]:
     """Parse a volume specification into a sorted list of volume strings.
     
@@ -412,20 +454,52 @@ def build_cap_corpus_in_portions(
     all_chunks: List[CorpusDocument] = []
     all_known_cases: Set[str] = set()
 
-    # If canonical corpus JSON already exists, load it directly (prevents redundant work)
+    target_vols = set(str(v).strip() for v in volumes)
+    is_subset = volume_tag.lower() not in ("all", "full", "multi") and len(target_vols) < 300
+    subset_corpus_path = os.path.join(os.path.dirname(CORPUS_JSON_PATH), f"cap_corpus_{volume_tag}.json")
+
+    # 1. Check if specific subset corpus already exists (e.g. cap_corpus_landmark.json)
+    if is_subset and os.path.exists(subset_corpus_path):
+        try:
+            with open(subset_corpus_path, "r", encoding="utf-8") as f:
+                raw_list = json.load(f)
+            if isinstance(raw_list, list) and len(raw_list) > 0:
+                print(f"  [CHECKPOINT] Found existing '{volume_tag}' corpus: {subset_corpus_path} ({len(raw_list):,} chunks).")
+                all_chunks = [CorpusDocument.from_dict(d) if isinstance(d, dict) else d for d in raw_list]
+                all_known_cases = extract_known_cases_from_chunks(all_chunks)
+                print(f"  [CHECKPOINT] Extracted {len(all_known_cases):,} known cases & citations from '{volume_tag}' corpus.")
+                return all_chunks, all_known_cases
+        except Exception as e:
+            logger.warning("Could not load existing %s: %s", subset_corpus_path, e)
+
+    # 2. If canonical master corpus exists, try to filter it
     if os.path.exists(CORPUS_JSON_PATH):
         try:
             with open(CORPUS_JSON_PATH, "r", encoding="utf-8") as f:
                 raw_list = json.load(f)
             if isinstance(raw_list, list) and len(raw_list) > 0:
-                print(f"  [CHECKPOINT] Found existing master corpus: {CORPUS_JSON_PATH} ({len(raw_list):,} chunks).")
                 all_chunks = [CorpusDocument.from_dict(d) if isinstance(d, dict) else d for d in raw_list]
-                all_known_cases = extract_known_cases_from_chunks(all_chunks)
-                print(f"  [CHECKPOINT] Extracted {len(all_known_cases):,} known cases & citations from existing corpus.")
-                return all_chunks, all_known_cases
+                
+                # Filter to target volumes if running subset
+                if is_subset:
+                    filtered = [c for c in all_chunks if extract_doc_volume(c) in target_vols]
+                    if filtered:
+                        print(f"  [CHECKPOINT] Filtered existing master corpus to {len(filtered):,} chunks for '{volume_tag}' ({len(target_vols)} volumes).")
+                        all_known_cases = extract_known_cases_from_chunks(filtered)
+                        os.makedirs(os.path.dirname(subset_corpus_path), exist_ok=True)
+                        with open(subset_corpus_path, "w", encoding="utf-8") as handle:
+                            json.dump([chunk.to_dict() for chunk in filtered], handle, ensure_ascii=False)
+                        return filtered, all_known_cases
+                    else:
+                        print(f"  [CHECKPOINT] Master corpus did not contain volume tags for '{volume_tag}'. Building directly from {total_volumes} volume caches...")
+                else:
+                    print(f"  [CHECKPOINT] Found existing master corpus: {CORPUS_JSON_PATH} ({len(raw_list):,} chunks).")
+                    all_known_cases = extract_known_cases_from_chunks(all_chunks)
+                    return all_chunks, all_known_cases
         except Exception as e:
             logger.warning("Could not load existing %s: %s. Building in portions...", CORPUS_JSON_PATH, e)
 
+    all_chunks = []
     print(f"\n  Processing {total_volumes} volumes in {total_portions} portions (Portion size: {portion_size} volumes)...")
 
     for p_idx in range(total_portions):
@@ -444,9 +518,10 @@ def build_cap_corpus_in_portions(
         all_chunks.extend(portion_chunks)
         print(f"  [Portion {p_idx + 1}/{total_portions}] Complete: +{len(portion_chunks):,} chunks | Accumulated: {len(all_chunks):,} chunks | Known cases: {len(all_known_cases):,}")
 
-        # Checkpoint master corpus after each portion
-        os.makedirs(os.path.dirname(CORPUS_JSON_PATH), exist_ok=True)
-        with open(CORPUS_JSON_PATH, "w", encoding="utf-8") as handle:
+        # Checkpoint corpus after each portion
+        corpus_out_file = CORPUS_JSON_PATH if not is_subset else subset_corpus_path
+        os.makedirs(os.path.dirname(corpus_out_file), exist_ok=True)
+        with open(corpus_out_file, "w", encoding="utf-8") as handle:
             json.dump([chunk.to_dict() for chunk in all_chunks], handle, ensure_ascii=False)
 
         # Checkpoint known cases

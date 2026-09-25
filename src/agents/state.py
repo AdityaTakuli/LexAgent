@@ -5,7 +5,7 @@ from typing import TypedDict, List, Optional, Any
 from src.data.corpus_schema import CorpusDocument, CitationRecord
 
 
-class LexAgentState(TypedDict):
+class LexAgentState(TypedDict, total=False):
     """Complete state schema for LexAgent v3.0 DVA+ pipeline."""
 
     # ── LLM PIPELINE ──
@@ -27,12 +27,14 @@ class LexAgentState(TypedDict):
     prosecutor_argument:    str
     prosecutor_citations:   List[CitationRecord]
 
-    # ── DEFENSE ──
-    defense_argument:       str
-    defense_citations:      List[CitationRecord]
-    defense_challenges:     List[str]
-    defense_concede:        bool
-    challenge_strength:     float
+    # ── DEFENSE (Novelty 3: Evidence-Disjoint Defense) ──
+    defense_argument:         str
+    defense_citations:        List[CitationRecord]
+    defense_challenges:       List[str]
+    defense_concede:          bool
+    challenge_strength:       float
+    defense_counter_passages: List[CorpusDocument]
+    evidence_overlap_ratio:   float
 
     # ── REFLECTION AGENT ──
     reflection_gaps:        List[str]

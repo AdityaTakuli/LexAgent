@@ -36,6 +36,8 @@ def run_phase3_test(query: str = "Does the Fourteenth Amendment protect abortion
         "defense_challenges": [],
         "defense_concede": False,
         "challenge_strength": 0.0,
+        "defense_counter_passages": [],
+        "evidence_overlap_ratio": 0.0,
         "reflection_gaps": [],
         "reflection_queries": [],
         "reflection_score": 0.0,
@@ -61,6 +63,7 @@ def run_phase3_test(query: str = "Does the Fourteenth Amendment protect abortion
     print(f"  Rounds Completed: {result.get('debate_round', 0) + 1}")
     print(f"  DDC Final Decision: {result.get('ddc_decision', '')} ({result.get('ddc_reason', '')})")
     print(f"  Average Citation Confidence (CCS): {result.get('avg_ccs', 0.0):.4f}")
+    print(f"  Evidence Overlap Ratio (EOR): {result.get('evidence_overlap_ratio', 0.0):.2%}")
 
     verified = result.get("judge_verified_citations", [])
     print(f"\n  VERIFIED CITATIONS ({len(verified)}):")

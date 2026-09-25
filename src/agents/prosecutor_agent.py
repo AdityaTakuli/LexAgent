@@ -52,8 +52,22 @@ def _invoke_llm(llm, prompt: str, fallback_prompt: Optional[str] = None, max_ret
     last_text = ""
     for attempt in range(max_retries + 1):
         try:
-            result = llm.invoke(current_prompt)
-            text = result.strip() if isinstance(result, str) else str(result).strip()
+            if hasattr(llm, "invoke") and callable(getattr(llm, "invoke")):
+                result = llm.invoke(current_prompt)
+            elif callable(llm):
+                result = llm(current_prompt)
+            else:
+                result = str(llm)
+
+            if isinstance(result, list) and result and isinstance(result[0], dict) and "generated_text" in result[0]:
+                text = str(result[0]["generated_text"]).strip()
+            elif isinstance(result, str):
+                text = result.strip()
+            elif hasattr(result, "content"):
+                text = str(result.content).strip()
+            else:
+                text = str(result).strip()
+
             last_text = text
             if text and "{" in text:
                 return text
@@ -145,6 +159,9 @@ def _safe_parse_json(raw: str, fallback_key: str = "text") -> dict:
             holding_m = re.search(r'"holding"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"', full_cite)
             if holding_m:
                 c_data["holding"] = holding_m.group(1)
+            cite_m = re.search(r'"(?:reporter_cite|citation)"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"', full_cite)
+            if cite_m:
+                c_data["reporter_cite"] = cite_m.group(1)
             conf_m = re.search(r'"(?:self_confidence|ccs)"\s*:\s*([\d\.]+)', full_cite)
             if conf_m:
                 c_data["self_confidence"] = float(conf_m.group(1))
@@ -206,13 +223,15 @@ def prosecutor_node(state: LexAgentState) -> dict:
             case_name = _clean_case_name(c.get("case_name", ""))
             if not case_name:
                 continue
+            rep_cite = str(c.get("reporter_cite", "") or c.get("citation", "") or "")
             citations.append(CitationRecord(
                 case_name=case_name,
                 court=str(c.get("court", "") or ""),
                 year=_safe_year(c.get("year")),
                 holding=str(c.get("holding", "") or ""),
                 self_confidence=float(c.get("self_confidence", 0.5) if c.get("self_confidence") is not None else 0.5),
-                agent_source="prosecutor"
+                agent_source="prosecutor",
+                reporter_cite=rep_cite,
             ))
         except (ValueError, TypeError) as e:
             logger.warning("Skipping malformed citation: %s (%s)", c, e)

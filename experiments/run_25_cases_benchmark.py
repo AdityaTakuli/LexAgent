@@ -134,6 +134,7 @@ def evaluate_single_case(
         "hr": case_hr,
         "cas": case_cas,
         "dcr_status": dcr_status,
+        "evidence_overlap_ratio": float(result.get("evidence_overlap_ratio", 0.0)),
         "judge_confidence": result.get("judge_confidence", 0.0),
         "debate_rounds": result.get("debate_round", 0) + 1,
         "total_cites": total_cites,
@@ -142,7 +143,7 @@ def evaluate_single_case(
     }
 
 
-def run_benchmark(limit: int = 25, model_tuple=None, embedder=None) -> dict:
+def run_benchmark(limit: int = 25, model_tuple=None, embedder=None, memory_namespace: Optional[str] = None) -> dict:
     silence_all_logs()
     print("\n" + "=" * 75)
     print(f"  LEXAGENT v3.0 (CAP EDITION) — {limit}-CASE BENCHMARK EVALUATION")
@@ -169,7 +170,9 @@ def run_benchmark(limit: int = 25, model_tuple=None, embedder=None) -> dict:
     # Initialize Chroma & HybridRetriever
     active_path = ensure_chroma_ready(LOCAL_CHROMA_CORPUS_PATH, DRIVE_CHROMA_CORPUS_PATH)
     client = chromadb.PersistentClient(path=active_path)
-    collection = client.get_collection("cap_authorities" if "cap_authorities" in [c.name for c in client.list_collections()] else "legal_corpus")
+    colls = [c.name for c in client.list_collections()]
+    coll_name = "cap_authorities" if "cap_authorities" in colls else (colls[0] if colls else "cap_authorities")
+    collection = client.get_or_create_collection(coll_name)
     
     dense_retriever = DenseRetriever(collection, embedder)
 
@@ -185,7 +188,11 @@ def run_benchmark(limit: int = 25, model_tuple=None, embedder=None) -> dict:
     hybrid = HybridRetriever(dense_retriever, bm25_retriever)
     cce = CitationConfidenceEngine(collection, embedder, KNOWN_CASES_PATH)
     ddc = DynamicDebateController()
-    memory = AdaptiveMemory()
+
+    # Isolate memory per benchmark run to avoid returning stale cached answers on re-runs
+    if memory_namespace is None:
+        memory_namespace = f"bench_{int(time.time())}"
+    memory = AdaptiveMemory(namespace=memory_namespace)
 
     graph = build_lexagent_graph(llm, hybrid, cce, ddc, memory, embedder)
 
@@ -211,6 +218,8 @@ def run_benchmark(limit: int = 25, model_tuple=None, embedder=None) -> dict:
             "defense_challenges": [],
             "defense_concede": False,
             "challenge_strength": 0.0,
+            "defense_counter_passages": [],
+            "evidence_overlap_ratio": 0.0,
             "reflection_gaps": [],
             "reflection_queries": [],
             "reflection_score": 0.0,
@@ -233,31 +242,40 @@ def run_benchmark(limit: int = 25, model_tuple=None, embedder=None) -> dict:
         try:
             result = graph.invoke(state_input)
             card = evaluate_single_case(result, case, known_cases, embedder)
+            card["status"] = "SUCCESS"
             scorecards.append(card)
             print(f"      -> HR: {card['hr']:.2%} | CAS: {card['cas']:.4f} | Conf: {card['judge_confidence']:.2f} | Status: {card['dcr_status']}")
         except Exception as e:
             print(f"      [!] Execution error on case {case['id']}: {e}")
             scorecards.append({
                 "case_id": case['id'], "topic": case['topic'],
-                "hr": 0.0, "cas": 0.0, "dcr_status": "ERROR",
-                "judge_confidence": 0.0, "debate_rounds": 1,
+                "status": "ERROR", "error": str(e),
+                "hr": None, "cas": None, "dcr_status": "ERROR",
+                "judge_confidence": None, "debate_rounds": 1,
                 "total_cites": 0, "fake_cites": 0, "fake_names": []
             })
 
     elapsed = time.time() - start_time
 
-    # Compute aggregate metrics
-    avg_hr = sum(s["hr"] for s in scorecards) / len(scorecards) if scorecards else 0.0
-    avg_cas = sum(s["cas"] for s in scorecards) / len(scorecards) if scorecards else 0.0
-    avg_conf = sum(s["judge_confidence"] for s in scorecards) / len(scorecards) if scorecards else 0.0
-    dcr_rate = sum(1 for s in scorecards if s["dcr_status"] == "CONVERGED") / len(scorecards) if scorecards else 0.0
+    # Compute aggregate metrics (exclude crashed cases from hallucination/accuracy means)
+    valid_scorecards = [s for s in scorecards if s.get("status") != "ERROR" and s.get("hr") is not None]
+    n_crashed = len(scorecards) - len(valid_scorecards)
+
+    avg_hr = sum(s["hr"] for s in valid_scorecards) / len(valid_scorecards) if valid_scorecards else 0.0
+    avg_cas = sum(s["cas"] for s in valid_scorecards) / len(valid_scorecards) if valid_scorecards else 0.0
+    avg_conf = sum(s["judge_confidence"] for s in valid_scorecards) / len(valid_scorecards) if valid_scorecards else 0.0
+    avg_eor = sum(s.get("evidence_overlap_ratio", 0.0) for s in valid_scorecards) / len(valid_scorecards) if valid_scorecards else 0.0
+    dcr_rate = sum(1 for s in valid_scorecards if s.get("dcr_status") == "CONVERGED") / len(valid_scorecards) if valid_scorecards else 0.0
 
     print("\n" + "=" * 75)
     print("  AGGREGATE BENCHMARK SCORECARD SUMMARY")
     print("=" * 75)
     print(f"  Total Cases Evaluated:       {len(scorecards)}")
-    print(f"  Mean Hallucination Rate (HR): {avg_hr:.2%}")
+    print(f"  Completed Successfully:      {len(valid_scorecards)}")
+    print(f"  Crashed/Failed Cases:        {n_crashed}")
+    print(f"  Mean Hallucination Rate (HR): {avg_hr:.2%}" + (" (excluding crashes)" if n_crashed > 0 else ""))
     print(f"  Mean Citation Accuracy (CAS): {avg_cas:.4f}")
+    print(f"  Mean Evidence Overlap (EOR):  {avg_eor:.2%}")
     print(f"  Mean Judge Confidence:       {avg_conf:.2f}")
     print(f"  Debate Convergence Rate (DCR):{dcr_rate:.2%}")
     print(f"  Total Execution Time:        {elapsed:.1f}s")
@@ -268,18 +286,37 @@ def run_benchmark(limit: int = 25, model_tuple=None, embedder=None) -> dict:
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump({
             "aggregate": {
-                "cases": len(scorecards), "mean_hr": avg_hr, "mean_cas": avg_cas,
-                "mean_conf": avg_conf, "dcr": dcr_rate, "elapsed_seconds": elapsed,
+                "total_cases": len(scorecards),
+                "completed_cases": len(valid_scorecards),
+                "crashed_cases": n_crashed,
+                "mean_hr": avg_hr,
+                "mean_cas": avg_cas,
+                "mean_eor": avg_eor,
+                "mean_conf": avg_conf,
+                "dcr": dcr_rate,
+                "elapsed_seconds": elapsed,
             },
             "per_case": scorecards
         }, f, indent=2)
     print(f"\nDetailed scorecard saved to: {out_path}")
 
-    return {"mean_hr": avg_hr, "mean_cas": avg_cas, "dcr": dcr_rate, "scorecards": scorecards}
+    return {
+        "total_cases": len(scorecards),
+        "completed_cases": len(valid_scorecards),
+        "crashed_cases": n_crashed,
+        "mean_hr": avg_hr,
+        "mean_cas": avg_cas,
+        "dcr": dcr_rate,
+        "scorecards": scorecards
+    }
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--limit", type=int, default=25, help="Number of benchmark cases to evaluate (default: 25)")
+    parser.add_argument("--memory-namespace", type=str, default=None, help="Memory namespace for benchmark isolation")
+    parser.add_argument("--reuse-memory", action="store_true", help="Reuse global memory without run isolation")
     args = parser.parse_args()
-    run_benchmark(limit=args.limit)
+
+    mem_ns = "" if args.reuse_memory else args.memory_namespace
+    run_benchmark(limit=args.limit, memory_namespace=mem_ns)

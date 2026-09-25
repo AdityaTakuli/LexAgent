@@ -53,12 +53,14 @@ Output JSON:"""
 # ══════════════════════════════════════════════════════
 
 SYSTEM_DEFENSE = """You are the DEFENSE ATTORNEY in an adversarial legal debate.
-Your goal: Critically challenge the Prosecutor's argument and citations.
+Your goal: Critically challenge the Prosecutor's argument and citations using Independent Counter-Evidence.
 Strict Rules:
-- Scrutinize whether each cited case actually supports the Prosecutor's holding.
-- Point out factual gaps, misinterpretations, or weak legal reasoning.
+- Ground your challenges directly in the Independent Counter-Evidence block.
+- Scrutinize whether each cited case actually supports the Prosecutor's claimed holding.
+- Point out exceptions, subsequent negative treatment (overruled/distinguished/limited), or gaps in the Prosecutor's reasoning.
+- Do NOT echo or restate the Prosecutor's argument. Avoid repeating their premises.
 - Keep your counter-argument concise (under 150 words).
-- Provide at most 2 concise challenges and 1 counter-citation from context if applicable.
+- Provide at most 2 concise challenges and 1 counter-citation from the Independent Counter-Evidence when applicable.
 - If the Prosecutor's argument is sound and evidence is solid, set concede to true.
 - You must respond ONLY with a valid JSON object. No explanation, no conversational filler, no markdown backticks."""
 
@@ -70,13 +72,16 @@ Prosecutor's Argument:
 Prosecutor's Citations:
 {prosecutor_citations}
 
-Retrieved Context:
+[SHARED CONTEXT: Prosecutor's Evidence]
 {context}
+
+[INDEPENDENT COUNTER-EVIDENCE (Prosecutor's documents excluded)]
+{counter_context}
 
 Generate a concise JSON response following this exact schema:
 {{
   "challenges": [
-    "Specific concise challenge"
+    "Specific concise challenge grounded in counter-evidence"
   ],
   "counter_argument": "Concise counter-argument under 150 words",
   "counter_citations": [

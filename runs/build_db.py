@@ -46,6 +46,49 @@ from src.data.cap_ingest import (
     parse_volume_selection,
     write_cap_manifest,
 )
+try:
+    from src.data.cap_ingest import extract_doc_volume
+except ImportError:
+    def extract_doc_volume(doc) -> str:
+        vol = getattr(doc, "volume", None) if hasattr(doc, "volume") else (doc.get("volume") if isinstance(doc, dict) else None)
+        if isinstance(vol, dict):
+            return str(vol.get("volume_number") or vol.get("volume") or "").strip()
+        if vol:
+            s = str(vol).strip()
+            m = re.search(r"['\"]?volume_number['\"]?\s*:\s*['\"]?(\d+)['\"]?", s)
+            if m:
+                return m.group(1)
+            m = re.match(r"^\d+$", s)
+            if m:
+                return s
+        meta = getattr(doc, "metadata", {}) if hasattr(doc, "metadata") else (doc.get("metadata", {}) if isinstance(doc, dict) else {})
+        if isinstance(meta, dict):
+            m_vol = meta.get("volume")
+            if isinstance(m_vol, dict):
+                return str(m_vol.get("volume_number") or "").strip()
+            if m_vol:
+                s = str(m_vol).strip()
+                m = re.search(r"['\"]?volume_number['\"]?\s*:\s*['\"]?(\d+)['\"]?", s)
+                if m:
+                    return m.group(1)
+                m = re.match(r"^\d+$", s)
+                if m:
+                    return s
+            for c in meta.get("citations", []):
+                c_str = c.get("cite", "") if isinstance(c, dict) else str(c)
+                m = re.search(r"(\d+)\s+U\.?\s*S\.?", c_str, re.IGNORECASE)
+                if m:
+                    return m.group(1)
+        doc_id = getattr(doc, "doc_id", "") if hasattr(doc, "doc_id") else (doc.get("doc_id", "") if isinstance(doc, dict) else "")
+        m = re.search(r"(?:vol_?|CAP_?)(\d+)", doc_id, re.IGNORECASE)
+        if m:
+            return m.group(1)
+        text_sample = f"{getattr(doc, 'case_name', '')} {getattr(doc, 'text', '')[:200]}" if hasattr(doc, "text") else ""
+        m = re.search(r"(\d+)\s+U\.?\s*S\.?", text_sample, re.IGNORECASE)
+        if m:
+            return m.group(1)
+        return ""
+
 from src.models.load_model import load_embedder
 from src.retrieval.bm25_retriever import BM25Retriever
 from src.utils.logger import get_logger
@@ -140,24 +183,58 @@ def main(
     chunks = []
     known_cases = set()
 
-    if os.path.exists(CORPUS_JSON_PATH) and not overwrite:
+    target_vols = set(str(v).strip() for v in volume_list)
+    is_subset = volumes_mode.lower() not in ("all", "full")
+    subset_corpus_path = os.path.join(os.path.dirname(CORPUS_JSON_PATH), f"cap_corpus_{volumes_mode}.json")
+
+    # 1a. Check if specific subset corpus already exists (e.g. cap_corpus_landmark.json)
+    if is_subset and os.path.exists(subset_corpus_path) and not overwrite:
+        print(f"\n  -> Found existing '{volumes_mode}' corpus at: {subset_corpus_path}")
+        try:
+            with open(subset_corpus_path, "r", encoding="utf-8") as f:
+                raw_list = json.load(f)
+            from src.data.corpus_schema import CorpusDocument
+            chunks = [CorpusDocument.from_dict(d) if isinstance(d, dict) else d for d in raw_list]
+            known_cases = extract_known_cases_from_chunks(chunks)
+            print(f"  -> Successfully loaded {len(chunks):,} chunks for '{volumes_mode}' preset.")
+        except Exception as e:
+            logger.warning("Could not load subset corpus %s: %s", subset_corpus_path, e)
+
+    # 1b. Check if master corpus exists and filter it
+    if not chunks and os.path.exists(CORPUS_JSON_PATH) and not overwrite:
         print(f"\n  -> Found existing master corpus at: {CORPUS_JSON_PATH}")
         print("  -> Loading chunked documents directly from disk...")
         try:
             with open(CORPUS_JSON_PATH, "r", encoding="utf-8") as f:
                 raw_list = json.load(f)
             from src.data.corpus_schema import CorpusDocument
-            chunks = [CorpusDocument.from_dict(d) if isinstance(d, dict) else d for d in raw_list]
+            all_loaded = [CorpusDocument.from_dict(d) if isinstance(d, dict) else d for d in raw_list]
             del raw_list
             import gc
             gc.collect()
-            print(f"  -> Successfully loaded {len(chunks):,} corpus chunks.")
-            if os.path.exists(KNOWN_CASES_PATH) and not overwrite:
-                print(f"  [OK] Known cases catalog already exists on disk: {KNOWN_CASES_PATH}. Skipping re-extraction.")
-                known_cases = None
+            print(f"  -> Successfully loaded {len(all_loaded):,} corpus chunks from disk.")
+
+            if is_subset:
+                filtered_chunks = [c for c in all_loaded if extract_doc_volume(c) in target_vols]
+                if filtered_chunks:
+                    print(f"  -> Filtered down to {len(filtered_chunks):,} chunks for '{volumes_mode}' preset ({len(target_vols)} target volumes).")
+                    chunks = filtered_chunks
+                    os.makedirs(os.path.dirname(subset_corpus_path), exist_ok=True)
+                    with open(subset_corpus_path, "w", encoding="utf-8") as f:
+                        json.dump([c.to_dict() for c in chunks], f, ensure_ascii=False)
+                else:
+                    print(f"  -> Master corpus did not contain volume tags for '{volumes_mode}'. Building directly from raw volume caches...")
+                    chunks, known_cases = build_cap_corpus_in_portions(
+                        volume_list,
+                        portion_size=portion_size,
+                        max_workers=max_workers,
+                        volume_tag=volumes_mode,
+                    )
             else:
-                known_cases = extract_known_cases_from_chunks(chunks)
-                print(f"  -> Extracted {len(known_cases):,} known cases & citations from corpus.")
+                chunks = all_loaded
+
+            known_cases = extract_known_cases_from_chunks(chunks)
+            print(f"  -> Extracted {len(known_cases):,} known cases & citations for '{volumes_mode}'.")
         except Exception as e:
             logger.warning("Could not parse existing corpus JSON: %s. Rebuilding in portions...", e)
             chunks, known_cases = build_cap_corpus_in_portions(
@@ -166,8 +243,7 @@ def main(
                 max_workers=max_workers,
                 volume_tag=volumes_mode,
             )
-    else:
-        # Build corpus using portioned chunking and volume-level caching
+    elif not chunks:
         chunks, known_cases = build_cap_corpus_in_portions(
             volume_list,
             portion_size=portion_size,
@@ -264,8 +340,11 @@ def main(
             ckpt = load_checkpoint(INDEXING_CHECKPOINT_PATH)
             start_index = ckpt.get("last_indexed_index", 0)
 
-            # Fallback to collection count if checkpoint file was absent but items exist
-            if start_index == 0 and existing_count > 0:
+            # If local Chroma collection is empty, restart from 0 to prevent skipping chunks
+            if existing_count == 0:
+                start_index = 0
+            # If checkpoint chunk count doesn't match current subset (e.g. switched to landmark)
+            elif ckpt.get("total_chunks") != len(chunks) or start_index > len(chunks):
                 start_index = min(existing_count, len(chunks))
     except Exception as e:
         print(f"\n  [!] CAUTION: Corrupted ChromaDB state detected: {e}")

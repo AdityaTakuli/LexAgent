@@ -3,6 +3,7 @@
 
 import os
 import sys
+import hashlib
 from datetime import datetime
 import chromadb
 
@@ -17,19 +18,36 @@ from src.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
+def _stable_hash(text: str) -> str:
+    """Stable, deterministic SHA-1 hash for IDs across Python processes."""
+    return hashlib.sha1(text.strip().lower().encode("utf-8")).hexdigest()[:16]
+
+
 class AdaptiveMemory:
     """Cross-session citation risk tracking + verdict caching."""
 
-    def __init__(self):
-        client = chromadb.PersistentClient(path=CHROMA_MEMORY_PATH)
-        self.verdict_collection = client.get_or_create_collection(
-            "verdict_cache", metadata={"hnsw:space": "cosine"}
+    def __init__(self, chroma_path: str = CHROMA_MEMORY_PATH, namespace: str = "", client=None):
+        self.namespace = namespace
+        if client is not None:
+            self.client = client
+        elif chroma_path == ":memory:":
+            self.client = chromadb.EphemeralClient()
+        else:
+            self.client = chromadb.PersistentClient(path=chroma_path)
+
+        prefix = f"{namespace}_" if namespace else ""
+        verdict_coll_name = f"{prefix}verdict_cache"
+        risk_coll_name = f"{prefix}citation_risk_index"
+
+        self.verdict_collection = self.client.get_or_create_collection(
+            verdict_coll_name, metadata={"hnsw:space": "cosine"}
         )
-        self.risk_collection = client.get_or_create_collection(
-            "citation_risk_index", metadata={"hnsw:space": "cosine"}
+        self.risk_collection = self.client.get_or_create_collection(
+            risk_coll_name, metadata={"hnsw:space": "cosine"}
         )
         logger.info(
-            "AdaptiveMemory initialized: %d cached verdicts, %d risk entries",
+            "AdaptiveMemory initialized (namespace='%s'): %d cached verdicts, %d risk entries",
+            namespace,
             self.verdict_collection.count(),
             self.risk_collection.count(),
         )
@@ -72,9 +90,34 @@ class AdaptiveMemory:
             logger.debug("High-risk citation lookup failed: %s", e)
             return []
 
+    def clear_verdict_cache(self):
+        """Clears cached verdicts for this memory namespace."""
+        try:
+            name = self.verdict_collection.name
+            self.client.delete_collection(name)
+            self.verdict_collection = self.client.get_or_create_collection(
+                name, metadata={"hnsw:space": "cosine"}
+            )
+            logger.info("Verdict cache cleared: %s", name)
+        except Exception as e:
+            logger.warning("Failed to clear verdict cache %s: %s", self.verdict_collection.name, e)
+
+    def clear_all(self):
+        """Clears both verdict cache and citation risk index."""
+        self.clear_verdict_cache()
+        try:
+            name = self.risk_collection.name
+            self.client.delete_collection(name)
+            self.risk_collection = self.client.get_or_create_collection(
+                name, metadata={"hnsw:space": "cosine"}
+            )
+            logger.info("Risk collection cleared: %s", name)
+        except Exception as e:
+            logger.warning("Failed to clear risk index %s: %s", self.risk_collection.name, e)
+
     def store_verdict(self, state: LexAgentState, embedder):
         q_vec = embedder.encode(state["query"]).tolist()
-        doc_id = f"verdict_{abs(hash(state['query']))}"
+        doc_id = f"verdict_{_stable_hash(state['query'])}"
 
         self.verdict_collection.upsert(
             ids=[doc_id],
@@ -102,7 +145,7 @@ class AdaptiveMemory:
             if not case_name:
                 continue
 
-            risk_id = f"risk_{abs(hash(case_name))}"
+            risk_id = f"risk_{_stable_hash(case_name)}"
             risk_vec = embedder.encode(case_name).tolist()
 
             try:

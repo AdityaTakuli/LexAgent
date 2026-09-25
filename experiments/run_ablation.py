@@ -33,7 +33,7 @@ from config import (
 from src.utils.chroma_sync import ensure_chroma_ready
 from src.agents.state import LexAgentState
 from src.agents.prosecutor_agent import prosecutor_node
-from src.agents.defense_agent import defense_node
+from src.agents.defense_agent import defense_node, make_defense_node
 from src.agents.reflection_agent import reflection_node
 from src.agents.judge_agent import judge_node
 from src.novel.cce import CitationConfidenceEngine, make_cce_node
@@ -65,6 +65,8 @@ def _stub_defense_node(state: LexAgentState) -> dict:
         "defense_challenges": [],
         "defense_concede": True,
         "challenge_strength": 0.0,
+        "defense_counter_passages": [],
+        "evidence_overlap_ratio": 0.0,
     }
 
 
@@ -104,7 +106,7 @@ def build_ablation_graph(variant: str, llm, hybrid, cce, ddc, memory, embedder):
     if variant == "A1":
         active_defense = _stub_defense_node
     else:
-        active_defense = defense_node
+        active_defense = make_defense_node(hybrid)
 
     if variant == "A2":
         active_cce = _make_stub_cce_node()
@@ -167,7 +169,8 @@ def run_ablation_study(limit: int = 10):
     active_path = ensure_chroma_ready(LOCAL_CHROMA_CORPUS_PATH, DRIVE_CHROMA_CORPUS_PATH)
     client = chromadb.PersistentClient(path=active_path)
     colls = [c.name for c in client.list_collections()]
-    collection = client.get_collection("cap_authorities" if "cap_authorities" in colls else "legal_corpus")
+    coll_name = "cap_authorities" if "cap_authorities" in colls else (colls[0] if colls else "cap_authorities")
+    collection = client.get_or_create_collection(coll_name)
 
     from src.data.build_corpus import load_corpus
     corpus_chunks = load_corpus(CORPUS_JSON_PATH) if os.path.exists(CORPUS_JSON_PATH) else []
@@ -181,7 +184,7 @@ def run_ablation_study(limit: int = 10):
 
     cce = CitationConfidenceEngine(collection, embedder, KNOWN_CASES_PATH)
     ddc = DynamicDebateController()
-    memory = AdaptiveMemory()
+    ablation_run_id = int(time.time())
 
     variants = [
         ("Full", "Full LexAgent v3.0 (DVA+)"),
@@ -196,7 +199,9 @@ def run_ablation_study(limit: int = 10):
 
     for v_code, v_name in variants:
         print(f"\nEvaluating Variant [{v_code}]: {v_name}...")
-        graph = build_ablation_graph(v_code, llm, hybrid, cce, ddc, memory, embedder)
+        # Each ablation variant receives its own isolated memory namespace to prevent cross-variant cache contamination
+        variant_memory = AdaptiveMemory(namespace=f"ablation_{ablation_run_id}_{v_code}")
+        graph = build_ablation_graph(v_code, llm, hybrid, cce, ddc, variant_memory, embedder)
 
         cards = []
         for case in test_cases:
@@ -207,7 +212,8 @@ def run_ablation_study(limit: int = 10):
                 "prosecutor_argument": "", "prosecutor_citations": [],
                 "defense_argument": "", "defense_citations": [],
                 "defense_challenges": [], "defense_concede": False,
-                "challenge_strength": 0.0, "reflection_gaps": [],
+                "challenge_strength": 0.0, "defense_counter_passages": [],
+                "evidence_overlap_ratio": 0.0, "reflection_gaps": [],
                 "reflection_queries": [], "reflection_score": 0.0,
                 "citation_confidence_report": {}, "avg_ccs": 0.0,
                 "high_risk_citations": [], "ddc_decision": "",
@@ -219,29 +225,48 @@ def run_ablation_study(limit: int = 10):
             }
             try:
                 res = graph.invoke(state_input)
-                cards.append(evaluate_single_case(res, case, known_cases, embedder))
+                card = evaluate_single_case(res, case, known_cases, embedder)
+                card["status"] = "SUCCESS"
+                cards.append(card)
             except Exception as e:
-                cards.append({"hr": 0.0, "cas": 0.0, "judge_confidence": 0.0})
+                logger.error("Execution error on variant [%s] case %s: %s", v_code, case.get("id"), e)
+                cards.append({
+                    "case_id": case.get("id"),
+                    "topic": case.get("topic", ""),
+                    "status": "ERROR",
+                    "error": str(e),
+                    "hr": None,
+                    "cas": None,
+                    "judge_confidence": None,
+                })
 
-        m_hr = sum(c["hr"] for c in cards) / len(cards) if cards else 0.0
-        m_cas = sum(c["cas"] for c in cards) / len(cards) if cards else 0.0
-        m_conf = sum(c["judge_confidence"] for c in cards) / len(cards) if cards else 0.0
+        valid_cards = [c for c in cards if c.get("status") != "ERROR" and c.get("hr") is not None]
+        n_crashed = len(cards) - len(valid_cards)
+
+        m_hr = sum(c["hr"] for c in valid_cards) / len(valid_cards) if valid_cards else 0.0
+        m_cas = sum(c["cas"] for c in valid_cards) / len(valid_cards) if valid_cards else 0.0
+        m_conf = sum(c["judge_confidence"] for c in valid_cards) / len(valid_cards) if valid_cards else 0.0
 
         summary_table.append({
             "variant": v_code,
             "description": v_name,
+            "total_cases": len(cards),
+            "completed_cases": len(valid_cards),
+            "crashed_cases": n_crashed,
             "mean_hr": m_hr,
             "mean_cas": m_cas,
             "mean_confidence": m_conf,
         })
-        print(f"  -> Result: Mean HR={m_hr:.2%} | Mean CAS={m_cas:.4f} | Conf={m_conf:.2f}")
+        crash_msg = f" (Crashed: {n_crashed})" if n_crashed > 0 else ""
+        print(f"  -> Result: Mean HR={m_hr:.2%} | Mean CAS={m_cas:.4f} | Conf={m_conf:.2f} | Completed: {len(valid_cards)}/{len(cards)}{crash_msg}")
 
-    print("\n" + "=" * 80)
-    print(f"  {'Variant':<8} | {'Mean HR':<10} | {'Mean CAS':<10} | {'Confidence':<12} | {'Description'}")
-    print("-" * 80)
+    print("\n" + "=" * 96)
+    print(f"  {'Variant':<8} | {'Completed':<10} | {'Crashed':<8} | {'Mean HR':<10} | {'Mean CAS':<10} | {'Confidence':<12} | {'Description'}")
+    print("-" * 96)
     for row in summary_table:
-        print(f"  {row['variant']:<8} | {row['mean_hr']:<10.2%} | {row['mean_cas']:<10.4f} | {row['mean_confidence']:<12.2f} | {row['description']}")
-    print("=" * 80)
+        comp_str = f"{row['completed_cases']}/{row['total_cases']}"
+        print(f"  {row['variant']:<8} | {comp_str:<10} | {row['crashed_cases']:<8} | {row['mean_hr']:<10.2%} | {row['mean_cas']:<10.4f} | {row['mean_confidence']:<12.2f} | {row['description']}")
+    print("=" * 96)
 
     os.makedirs(RESULTS_DIR, exist_ok=True)
     out_path = os.path.join(RESULTS_DIR, "ablation_summary.json")

@@ -9,7 +9,7 @@ from langgraph.graph import StateGraph, END
 
 from src.agents.state import LexAgentState
 from src.agents.prosecutor_agent import prosecutor_node
-from src.agents.defense_agent import defense_node
+from src.agents.defense_agent import defense_node, make_defense_node
 from src.agents.reflection_agent import reflection_node
 from src.agents.judge_agent import judge_node
 from src.novel.cce import CitationConfidenceEngine, make_cce_node
@@ -26,11 +26,12 @@ def build_lexagent_graph(
     cce: CitationConfidenceEngine,
     ddc: DynamicDebateController,
     memory: AdaptiveMemory,
-    embedder: Any,
+    embedder: Any = None,
 ):
     memory_check_node, memory_store_node = make_memory_nodes(memory, embedder)
     cce_node_fn = make_cce_node(cce)
     ddc_node_fn = make_ddc_node(ddc)
+    defense_node_fn = make_defense_node(hybrid_retriever)
 
     builder = StateGraph(LexAgentState)
 
@@ -38,7 +39,7 @@ def build_lexagent_graph(
     builder.add_node("retrieve",      _make_retrieve_node(hybrid_retriever))
     builder.add_node("inject_llm",    _make_inject_llm_node(llm))
     builder.add_node("prosecutor",    prosecutor_node)
-    builder.add_node("defense",       defense_node)
+    builder.add_node("defense",       defense_node_fn)
     builder.add_node("cce",           cce_node_fn)
     builder.add_node("reflection",    reflection_node)
     builder.add_node("ddc",           ddc_node_fn)
@@ -106,7 +107,7 @@ def _make_retrieve_node(hybrid_retriever: Any):
         else:
             results = hybrid_retriever.retrieve(query, jurisdiction)
 
-        entity_map = hybrid_retriever.get_entity_map(results)
+        entity_map = hybrid_retriever.get_entity_map(results) if hasattr(hybrid_retriever, "get_entity_map") else {}
         return {
             "retrieved_passages": results,
             "entity_map":         entity_map,

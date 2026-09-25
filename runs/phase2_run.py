@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from langgraph.graph import END, StateGraph
 from experiments.bootstrap import load_lexagent_components
 from src.agents.prosecutor_agent import prosecutor_node
-from src.agents.defense_agent import defense_node
+from src.agents.defense_agent import defense_node, make_defense_node
 from src.agents.reflection_agent import reflection_node
 from src.agents.judge_agent import judge_node
 from src.agents.state import LexAgentState
@@ -37,7 +37,7 @@ def build_phase2_graph(llm, hybrid):
     graph.add_node("retrieve", _make_retrieve_node(hybrid))
     graph.add_node("inject_llm", _make_inject_llm_node(llm))
     graph.add_node("prosecutor", prosecutor_node)
-    graph.add_node("defense", defense_node)
+    graph.add_node("defense", make_defense_node(hybrid))
     graph.add_node("cce", phase2_cce)
     graph.add_node("reflection", reflection_node)
     graph.add_node("ddc", phase2_ddc)

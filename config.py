@@ -109,12 +109,16 @@ TOP_K_BM25     = 4
 RRF_K          = 60               # Reciprocal Rank Fusion constant
 
 # ══════════════════════════════════════════════════════
-# CCS — Citation Confidence Score (NOVEL component)
+# CCS — Citation Confidence Score (NOVEL component: Factorized CCE)
 # ══════════════════════════════════════════════════════
-CCS_VERIFIED_THRESHOLD  = 0.75   # CCS >= 0.75 → VERIFIED
+CCS_VERIFIED_THRESHOLD  = 0.75   # CCS >= 0.75 → SUPPORTED
 CCS_UNCERTAIN_THRESHOLD = 0.40   # 0.40 <= CCS < 0.75 → UNCERTAIN
+TAU_ACCEPTANCE_THRESHOLD = 0.70  # Conformal / Factorized acceptance threshold
 
-# CCS weights (continuous citation confidence scoring)
+# NLI Cross-Encoder for Entailment Support (Novelty 1)
+NLI_MODEL_NAME = "cross-encoder/nli-deberta-v3-small"
+
+# Legacy CCS weights (for backward compatibility / ablation comparisons)
 CCS_EXACT_WEIGHT    = 0.50
 CCS_FUZZY_WEIGHT    = 0.30
 CCS_SEMANTIC_WEIGHT = 0.20

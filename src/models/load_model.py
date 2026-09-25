@@ -7,7 +7,10 @@ Legal-BERT embedder runs on CPU or GPU.
 
 import os
 import sys
-import torch
+try:
+    import torch
+except ImportError:
+    torch = None
 from typing import Tuple, Any
 
 from config import MODEL_NAME, EMBEDDER_NAME
@@ -27,7 +30,8 @@ def load_mistral_7b() -> Tuple[Any, Any, Any]:
     """
     use_mock = os.environ.get("LEXAGENT_MOCK_LLM", "0") == "1"
 
-    if not torch.cuda.is_available() and not use_mock:
+    cuda_available = torch is not None and torch.cuda.is_available()
+    if not cuda_available and not use_mock:
         logger.error(
             "CUDA is not available. Mistral-7B requires a GPU. "
             "If testing locally without GPU, set LEXAGENT_MOCK_LLM=1."
@@ -37,7 +41,7 @@ def load_mistral_7b() -> Tuple[Any, Any, Any]:
             "or set LEXAGENT_MOCK_LLM=1 for CPU mock testing."
         )
 
-    if use_mock or not torch.cuda.is_available():
+    if use_mock or not cuda_available:
         logger.warning("Initializing Mock LLM pipeline for CPU/testing environment...")
         class MockPipeline:
             def __call__(self, prompt, **kwargs):
@@ -46,6 +50,8 @@ def load_mistral_7b() -> Tuple[Any, Any, Any]:
                     "the applicable legal standard confirms that constitutional protections apply. "
                     "[CITATION: Roe v. Wade, 410 U.S. 113 (1973)]"
                 )}]
+            def invoke(self, prompt, **kwargs):
+                return self(prompt, **kwargs)
         mock_pipe = MockPipeline()
         return None, None, mock_pipe
 
@@ -109,12 +115,26 @@ def load_mistral_7b() -> Tuple[Any, Any, Any]:
 
 def load_embedder() -> Any:
     """Load Legal-BERT embedder for dense retrieval."""
-    from sentence_transformers import SentenceTransformer
+    use_mock = os.environ.get("LEXAGENT_MOCK_LLM", "0") == "1"
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    logger.info("Loading embedder: %s (on %s)...", EMBEDDER_NAME, device)
-
-    embedder = SentenceTransformer(EMBEDDER_NAME, device=device)
-    logger.info("Embedder loaded: %s (dim=%d)", EMBEDDER_NAME,
-                embedder.get_sentence_embedding_dimension())
-    return embedder
+    try:
+        from sentence_transformers import SentenceTransformer
+        device = "cuda" if (torch is not None and torch.cuda.is_available()) else "cpu"
+        logger.info("Loading embedder: %s (on %s)...", EMBEDDER_NAME, device)
+        embedder = SentenceTransformer(EMBEDDER_NAME, device=device)
+        logger.info("Embedder loaded: %s (dim=%d)", EMBEDDER_NAME,
+                    embedder.get_sentence_embedding_dimension())
+        return embedder
+    except Exception as e:
+        if use_mock:
+            logger.warning("Using MockEmbedder for testing environment (%s)", e)
+            import numpy as np
+            class MockEmbedder:
+                def encode(self, texts, **kwargs):
+                    if isinstance(texts, str):
+                        return np.zeros(768, dtype=np.float32)
+                    return np.zeros((len(texts), 768), dtype=np.float32)
+                def get_sentence_embedding_dimension(self):
+                    return 768
+            return MockEmbedder()
+        raise e

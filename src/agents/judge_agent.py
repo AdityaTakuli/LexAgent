@@ -80,7 +80,7 @@ def judge_node(state: LexAgentState) -> dict:
             continue
         ccs_score = float(data.get("ccs", 0.0) or 0.0)
         tier = data.get("tier", "")
-        if tier == "VERIFIED":
+        if tier in ("SUPPORTED", "VERIFIED"):
             verified_ccs_map[c_name] = max(verified_ccs_map.get(c_name, 0.0), ccs_score if ccs_score > 0 else 0.85)
         elif tier == "UNCERTAIN":
             uncertain_ccs_map[c_name] = max(uncertain_ccs_map.get(c_name, 0.0), ccs_score if ccs_score > 0 else 0.50)
@@ -104,11 +104,8 @@ def judge_node(state: LexAgentState) -> dict:
                         break
             
             if actual_ccs is None:
-                model_c_conf = float(c.get("self_confidence", c.get("ccs", 0.0)) or 0.0)
-                if model_c_conf >= 0.75:
-                    actual_ccs = model_c_conf
-                else:
-                    continue
+                logger.info("Rejecting judge citation '%s': not verified by CCE", case_name)
+                continue
             verified.append(CitationRecord(
                 case_name=case_name,
                 court=str(c.get("court", "") or "Supreme Court"),
