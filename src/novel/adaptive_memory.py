@@ -138,7 +138,8 @@ class AdaptiveMemory:
         fake_count = 0
 
         for cid, data in report.items():
-            if data.get("tier") != "LIKELY_FAKE":
+            tier = data.get("tier", "")
+            if tier not in ("FABRICATED", "MISATTRIBUTED", "UNVERIFIABLE", "LIKELY_FAKE"):
                 continue
 
             case_name = data.get("citation", {}).get("case_name", "")
@@ -151,15 +152,15 @@ class AdaptiveMemory:
             try:
                 existing = self.risk_collection.get(ids=[risk_id])
                 if existing and existing.get("ids"):
-                    prev_ccs = existing["metadatas"][0].get("avg_ccs", data["ccs"])
+                    prev_ccs = existing["metadatas"][0].get("avg_ccs", data.get("ccs", 0.0))
                     prev_count = existing["metadatas"][0].get("count", 1)
                     new_count = prev_count + 1
-                    new_avg_ccs = prev_ccs + (data["ccs"] - prev_ccs) / new_count
+                    new_avg_ccs = prev_ccs + (data.get("ccs", 0.0) - prev_ccs) / new_count
                 else:
-                    new_avg_ccs = data["ccs"]
+                    new_avg_ccs = data.get("ccs", 0.0)
                     new_count = 1
             except Exception:
-                new_avg_ccs = data["ccs"]
+                new_avg_ccs = data.get("ccs", 0.0)
                 new_count = 1
 
             self.risk_collection.upsert(
@@ -170,12 +171,14 @@ class AdaptiveMemory:
                     "case_name": case_name,
                     "avg_ccs":   new_avg_ccs,
                     "count":     new_count,
+                    "tier":      tier,
                 }],
             )
             fake_count += 1
 
         if fake_count:
-            logger.info("Risk index updated: %d LIKELY_FAKE citations stored", fake_count)
+            logger.info("Risk index updated: %d high-risk citations stored", fake_count)
+
 
 
 def make_memory_nodes(memory: AdaptiveMemory, embedder):

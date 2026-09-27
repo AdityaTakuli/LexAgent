@@ -109,10 +109,18 @@ def step_run_ablation(limit: int = 10):
 
 def step_run_stress_test(output_file: str = "citation_stress_test_results.json"):
     print("\n" + "█" * 78)
-    print("  STEP 5: RUNNING CITATION STRESS-TEST PROTOCOL (Novelty 5)")
+    print("  STEP 4: RUNNING CITATION STRESS-TEST PROTOCOL (Novelty 5 Diagnostic Gate)")
     print("█" * 78)
     from experiments.run_stress_test import main as run_stress_test_main
-    run_stress_test_main(output_file=output_file)
+    return run_stress_test_main(output_file=output_file)
+
+
+def step_run_baseline(limit: int = 25):
+    print("\n" + "█" * 78)
+    print(f"  STEP: RUNNING STANDARD SINGLE-AGENT RAG BASELINE ({limit} Cases)")
+    print("█" * 78)
+    from experiments.run_25_cases_benchmark import run_single_agent_rag_baseline
+    run_single_agent_rag_baseline(limit=limit)
 
 
 def step_run_all(volumes_mode: str = "landmark", benchmark_limit: int = 25, ablation_limit: int = 10):
@@ -121,9 +129,15 @@ def step_run_all(volumes_mode: str = "landmark", benchmark_limit: int = 25, abla
     print("█" * 78)
     step_build_database(volumes_mode=volumes_mode)
     step_test_all_phases()
+    
+    # Critical Research Gate: Stress test runs first to confirm verifier zero false acceptance
+    print("\n>>> EXECUTING CITATION STRESS-TEST GATE PRIOR TO BENCHMARKS <<<")
+    stress_results = step_run_stress_test()
+    if stress_results.get("false_acceptance_rate_misattributed", 0.0) > 0.05:
+        print("\n[WARNING] Misattributed citation false-acceptance rate > 5.0%. Review CCE weights!")
+
     step_run_benchmark(limit=benchmark_limit)
     step_run_ablation(limit=ablation_limit)
-    step_run_stress_test()
     print("\n" + "█" * 78)
     print("  LEXAGENT v3.0 SUITE EXECUTION 100% COMPLETE!")
     print("█" * 78)
@@ -174,11 +188,12 @@ def interactive_menu():
         print("  [3] Run 25 to 30 Cases Benchmark Evaluation (Full Scorecard & Metrics)")
         print("  [4] Run Ablation Studies (4 Variants w/o Defense, CCE, Memory, DDC)")
         print("  [5] Run Citation Stress-Test Protocol (Novelty 5: 6-Class Diagnostic)")
-        print("  [6] Run Complete End-to-End Suite (Build DB -> Tests -> Benchmark -> Ablation -> Stress Test)")
+        print("  [6] Run Standard Single-Agent RAG Baseline (Retrieve -> Mistral-7B)")
+        print("  [7] Run Complete End-to-End Suite (Build DB -> Tests -> Stress Test -> Benchmark -> Ablation)")
         print("  [0] Exit")
         print("-" * 78)
 
-        choice = input("  Select an option [0-6]: ").strip()
+        choice = input("  Select an option [0-7]: ").strip()
 
         if choice == "1":
             print("\n  Volume Ingestion Presets:")
@@ -202,12 +217,16 @@ def interactive_menu():
         elif choice == "5":
             step_run_stress_test()
         elif choice == "6":
+            num_str = input("  Enter number of cases for baseline [default 25]: ").strip()
+            num = int(num_str) if num_str.isdigit() else 25
+            step_run_baseline(limit=num)
+        elif choice == "7":
             step_run_all()
         elif choice in ("0", "exit", "q"):
             print("\n  Exiting LexAgent Master Runner. Goodbye!\n")
             break
         else:
-            print("  Invalid selection. Please enter a number between 0 and 6.")
+            print("  Invalid selection. Please enter a number between 0 and 7.")
 
 
 def main():
@@ -235,19 +254,20 @@ def main():
     # Evaluation flags
     parser.add_argument("--benchmark", action="store_true", help="Run the comprehensive benchmark evaluation")
     parser.add_argument("--benchmark-limit", type=int, default=25, help="Number of benchmark cases to evaluate (default: 25, max: 30)")
+    parser.add_argument("--baseline", action="store_true", help="Run standard single-agent RAG baseline")
     parser.add_argument("--ablation", action="store_true", help="Run the 4-variant ablation studies")
     parser.add_argument("--ablation-limit", type=int, default=10, help="Number of cases per ablation variant (default: 10)")
     parser.add_argument("--stress-test", action="store_true", help="Run Citation Stress-Test Protocol (Novelty 5: 6-class controlled diagnostic)")
 
     # End-to-end flag
-    parser.add_argument("--all", action="store_true", help="Run complete end-to-end pipeline (Build DB -> Tests -> Benchmark -> Ablation -> Stress Test)")
+    parser.add_argument("--all", action="store_true", help="Run complete end-to-end pipeline (Build DB -> Tests -> Stress Test -> Benchmark -> Ablation)")
 
     args = parser.parse_args()
 
     has_flags = (
         args.build_db or args.test_phases or args.test_phase1 or
         args.test_phase2 or args.test_phase3 or args.phase is not None or
-        args.benchmark or args.ablation or args.stress_test or args.all
+        args.benchmark or args.baseline or args.ablation or args.stress_test or args.all
     )
 
     if not has_flags:
@@ -280,6 +300,9 @@ def main():
 
     if args.benchmark:
         step_run_benchmark(limit=args.benchmark_limit)
+
+    if args.baseline:
+        step_run_baseline(limit=args.benchmark_limit)
 
     if args.ablation:
         step_run_ablation(limit=args.ablation_limit)

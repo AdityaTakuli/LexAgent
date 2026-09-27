@@ -28,9 +28,18 @@ class LexAgentEvaluator:
         return {
             "method": method_name,
             "hr": hr["hr"],
+            "cfr": hr.get("cfr", 0.0),
+            "oor": hr.get("oor", 0.0),
+            "mar": hr.get("mar", 0.0),
+            "ucr": hr.get("ucr", 0.0),
+            "lhr": hr.get("lhr", 0.0),
+            "ass": cas.get("ass", 0.0),
+            "cas": cas["cas"],
+            "ap": cas.get("ap", 0.0),
+            "ar": cas.get("ar", 0.0),
+            "haa": cas.get("haa", 0.0),
             "n_fake": hr["n_fake"],
             "n_citations": hr["n_total"],
-            "cas": cas["cas"],
             "n_correct_holdings": cas["n_correct"],
         }
 
@@ -40,10 +49,11 @@ class LexAgentEvaluator:
             predictions.append({
                 "answer": r.get("final_answer", ""),
                 "citations": [
-                    {"case_name": c.get("case_name", "")}
+                    {"case_name": c.get("case_name", ""), "tier": c.get("tier", "")}
                     for c in r.get("judge_verified_citations", [])
                     if isinstance(c, dict)
                 ],
+                "citation_confidence_report": r.get("citation_confidence_report", {}),
             })
 
         base_metrics = self.evaluate("LexAgent_v3_DVA+", predictions)

@@ -6,6 +6,7 @@ counter-retrieval pass with Prosecutor's documents strictly excluded.
 Computes Evidence Overlap Ratio (EOR) to monitor echo-chamber effects.
 """
 
+import json
 from typing import List, Optional, Any, Set
 from src.agents.state import LexAgentState
 from src.agents.prompts import SYSTEM_DEFENSE, USER_DEFENSE, format_mistral_prompt
@@ -167,12 +168,14 @@ def make_defense_node(hybrid_retriever: Any = None):
         else:
             pros_cites_str = "(No citations provided by prosecutor)"
 
+        high_risk = state.get("high_risk_citations", [])
         user_content = USER_DEFENSE.format(
             query=state["query"],
             prosecutor_argument=state.get("prosecutor_argument", "(No argument provided)"),
             prosecutor_citations=pros_cites_str,
             context=shared_context,
             counter_context=counter_context,
+            high_risk_citations=json.dumps(high_risk) if high_risk else "(none)",
         )
         prompt = format_mistral_prompt(SYSTEM_DEFENSE, user_content)
         fallback_prompt = format_mistral_prompt(

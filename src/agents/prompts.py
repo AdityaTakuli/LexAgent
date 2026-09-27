@@ -78,6 +78,9 @@ Prosecutor's Citations:
 [INDEPENDENT COUNTER-EVIDENCE (Prosecutor's documents excluded)]
 {counter_context}
 
+High-Risk Citations to AVOID:
+{high_risk_citations}
+
 Generate a concise JSON response following this exact schema:
 {{
   "challenges": [

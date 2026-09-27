@@ -56,99 +56,62 @@ from experiments.run_25_cases_benchmark import evaluate_single_case
 logger = get_logger(__name__)
 
 
-# ─── ABLATION STUBS ─────────────────────────────
-
-def _stub_defense_node(state: LexAgentState) -> dict:
-    return {
-        "defense_argument": "",
-        "defense_citations": [],
-        "defense_challenges": [],
-        "defense_concede": True,
-        "challenge_strength": 0.0,
-        "defense_counter_passages": [],
-        "evidence_overlap_ratio": 0.0,
-    }
-
-
-def _make_stub_cce_node():
-    def stub_cce_node(state: LexAgentState) -> dict:
-        report = {}
-        all_cites = state.get("prosecutor_citations", []) + state.get("defense_citations", [])
-        for i, c in enumerate(all_cites):
-            c_name = c.get("case_name", "") if isinstance(c, dict) else getattr(c, "case_name", "")
-            report[f"cite_{i}_{c_name}"] = {
-                "ccs": 1.0,
-                "tier": "VERIFIED",
-                "citation": {"case_name": c_name},
-                "evidence": "A2 Ablation: Unverified assumption"
-            }
-        return {
-            "citation_confidence_report": report,
-            "avg_ccs": 1.0,
-        }
-    return stub_cce_node
-
-
-def _make_stub_memory_nodes():
-    def stub_memory_check(state: LexAgentState) -> dict:
-        return {"memory_cache_hit": False, "high_risk_citations": []}
-    def stub_memory_store(state: LexAgentState) -> dict:
-        return {}
-    return stub_memory_check, stub_memory_store
-
+# ─── CLEAN ABLATION GRAPH BUILDER ─────────────────────────────
 
 def build_ablation_graph(variant: str, llm, hybrid, cce, ddc, memory, embedder):
     memory_check_node, memory_store_node = make_memory_nodes(memory, embedder)
     cce_node_fn = make_cce_node(cce)
     ddc_node_fn = make_ddc_node(ddc)
 
-    # Apply stubs per variant
-    if variant == "A1":
-        active_defense = _stub_defense_node
-    else:
-        active_defense = make_defense_node(hybrid)
-
-    if variant == "A2":
-        active_cce = _make_stub_cce_node()
-    else:
-        active_cce = cce_node_fn
-
-    if variant == "A3":
-        active_mem_check, active_mem_store = _make_stub_memory_nodes()
-    else:
-        active_mem_check, active_mem_store = memory_check_node, memory_store_node
-
     builder = StateGraph(LexAgentState)
-    builder.add_node("memory_check", active_mem_check)
     builder.add_node("retrieve", _make_retrieve_node(hybrid))
     builder.add_node("inject_llm", _make_inject_llm_node(llm))
     builder.add_node("prosecutor", prosecutor_node)
-    builder.add_node("defense", active_defense)
-    builder.add_node("cce", active_cce)
     builder.add_node("reflection", reflection_node)
     builder.add_node("ddc", ddc_node_fn)
     builder.add_node("judge", judge_node)
-    builder.add_node("memory_store", active_mem_store)
 
-    builder.set_entry_point("memory_check")
-    builder.add_conditional_edges("memory_check", _route_after_memory_check,
-                                  {"cache_hit": END, "proceed": "retrieve"})
+    # 1. Memory integration (A3: true removal of memory check/store)
+    if variant != "A3":
+        builder.add_node("memory_check", memory_check_node)
+        builder.add_node("memory_store", memory_store_node)
+        builder.set_entry_point("memory_check")
+        builder.add_conditional_edges("memory_check", _route_after_memory_check,
+                                      {"cache_hit": END, "proceed": "retrieve"})
+        builder.add_edge("judge", "memory_store")
+        builder.add_edge("memory_store", END)
+    else:
+        builder.set_entry_point("retrieve")
+        builder.add_edge("judge", END)
+
     builder.add_edge("retrieve", "inject_llm")
     builder.add_edge("inject_llm", "prosecutor")
-    builder.add_edge("prosecutor", "defense")
-    builder.add_edge("defense", "cce")
-    builder.add_edge("cce", "reflection")
+
+    # 2. Defense node integration (A1: true removal of Defense node from graph)
+    if variant != "A1":
+        builder.add_node("defense", make_defense_node(hybrid))
+        builder.add_edge("prosecutor", "defense")
+        after_defense = "defense"
+    else:
+        after_defense = "prosecutor"
+
+    # 3. CCE node integration (A2: true removal of CCE node from graph)
+    if variant != "A2":
+        builder.add_node("cce", cce_node_fn)
+        builder.add_edge(after_defense, "cce")
+        builder.add_edge("cce", "reflection")
+    else:
+        builder.add_edge(after_defense, "reflection")
+
     builder.add_edge("reflection", "ddc")
 
+    # 4. DDC termination routing (A4: fixed single-round termination)
     if variant == "A4":
-        # Fixed 1-round: always terminate directly to Judge
         builder.add_edge("ddc", "judge")
     else:
         builder.add_conditional_edges("ddc", _route_after_ddc,
                                       {"CONTINUE": "retrieve", "TERMINATE": "judge"})
 
-    builder.add_edge("judge", "memory_store")
-    builder.add_edge("memory_store", END)
     return builder.compile()
 
 
@@ -199,7 +162,6 @@ def run_ablation_study(limit: int = 10):
 
     for v_code, v_name in variants:
         print(f"\nEvaluating Variant [{v_code}]: {v_name}...")
-        # Each ablation variant receives its own isolated memory namespace to prevent cross-variant cache contamination
         variant_memory = AdaptiveMemory(namespace=f"ablation_{ablation_run_id}_{v_code}")
         graph = build_ablation_graph(v_code, llm, hybrid, cce, ddc, variant_memory, embedder)
 
@@ -222,12 +184,16 @@ def run_ablation_study(limit: int = 10):
                 "judge_uncertain_citations": [], "judge_reasoning": "",
                 "memory_cache_hit": False, "cached_answer": None,
                 "final_answer": "", "structured_output": {},
+                "use_defense": (v_code != "A1"),
+                "use_cce": (v_code != "A2"),
+                "use_memory": (v_code != "A3"),
             }
             try:
                 res = graph.invoke(state_input)
                 card = evaluate_single_case(res, case, known_cases, embedder)
                 card["status"] = "SUCCESS"
                 cards.append(card)
+
             except Exception as e:
                 logger.error("Execution error on variant [%s] case %s: %s", v_code, case.get("id"), e)
                 cards.append({

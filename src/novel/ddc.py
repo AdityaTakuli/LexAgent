@@ -24,8 +24,11 @@ class DynamicDebateController:
         current_round   = state.get("debate_round", 0)
         defense_concede = state.get("defense_concede", False)
 
-        # Hard stops
-        if defense_concede:
+        use_defense     = state.get("use_defense", True)
+        use_cce         = state.get("use_cce", True)
+
+        # 1. Hard stops
+        if use_defense and defense_concede:
             logger.info("DDC: Defense conceded — TERMINATE")
             return "TERMINATE", "Defense conceded — Prosecutor argument accepted"
 
@@ -33,15 +36,20 @@ class DynamicDebateController:
             logger.info("DDC: Max rounds (%d) reached — TERMINATE", DDC_MAX_ROUNDS)
             return "TERMINATE", f"Maximum rounds ({DDC_MAX_ROUNDS}) reached"
 
-        # CONTINUE conditions
-        weak_citations   = avg_ccs < DDC_CCS_CONTINUE_THRESH
+        # 2. Extract min_ccs to prevent bad citations from hiding behind averages
+        report = state.get("citation_confidence_report", {})
+        ccs_vals = [v.get("ccs", 1.0) for v in report.values() if isinstance(v, dict) and "ccs" in v]
+        min_ccs = min(ccs_vals) if ccs_vals else avg_ccs
+
+        # 3. Decision conditions
+        weak_citations   = use_cce and ((avg_ccs < DDC_CCS_CONTINUE_THRESH) or (min_ccs < 0.40))
         has_gaps         = len(gaps) >= DDC_MIN_GAPS_TO_CONTINUE
-        strong_challenge = challenge_str > DDC_CHALLENGE_STRENGTH_THRESH
+        strong_challenge = use_defense and (challenge_str > DDC_CHALLENGE_STRENGTH_THRESH)
 
         if weak_citations and has_gaps:
             reason = (
-                f"Round {current_round + 1}: avg_CCS={avg_ccs:.2f} < "
-                f"{DDC_CCS_CONTINUE_THRESH} with {len(gaps)} unresolved gap(s). Initiating Round 2."
+                f"Round {current_round + 1}: avg_CCS={avg_ccs:.2f}, min_CCS={min_ccs:.2f} with "
+                f"{len(gaps)} unresolved gap(s). Initiating next debate round."
             )
             logger.info("DDC: CONTINUE — %s", reason)
             return "CONTINUE", reason
@@ -61,9 +69,10 @@ class DynamicDebateController:
             logger.info("DDC: TERMINATE — %s", reason)
             return "TERMINATE", reason
 
-        reason = f"Sufficient evidence: avg_CCS={avg_ccs:.2f}, gaps={len(gaps)}, round={current_round}"
+        reason = f"Deliberation concluded: avg_CCS={avg_ccs:.2f}, gaps={len(gaps)}, round={current_round}"
         logger.info("DDC: TERMINATE — %s", reason)
         return "TERMINATE", reason
+
 
 
 def make_ddc_node(ddc: DynamicDebateController):

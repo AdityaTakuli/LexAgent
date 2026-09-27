@@ -10,8 +10,28 @@ import os
 import sys
 
 # ══════════════════════════════════════════════════════
-# PATHS — Persistent Storage (Google Drive in Colab / Local Drive)
+# REPRODUCIBILITY & SEED CONTROL
 # ══════════════════════════════════════════════════════
+RANDOM_SEED = 42
+
+def set_random_seed(seed: int = RANDOM_SEED) -> None:
+    """Improves run-to-run reproducibility and enables controlled repeated experiments."""
+    import random
+    random.seed(seed)
+    try:
+        import numpy as np
+        np.random.seed(seed)
+    except ImportError:
+        pass
+    try:
+        import torch
+        torch.manual_seed(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(seed)
+    except ImportError:
+        pass
+
+
 def get_default_data_dir() -> str:
     """Determine persistent storage path.
     

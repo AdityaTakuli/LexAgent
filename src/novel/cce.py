@@ -121,17 +121,26 @@ class CitationConfidenceEngine:
         """
         case_name = citation.case_name.strip().lower()
         reporter_cite = getattr(citation, "reporter_cite", "").strip().lower()
-        normalized_corpus = {c.lower().strip() for c in self.known_cases if c}
 
-        # 1. Exact canonical catalog match
-        exact_match = (case_name in normalized_corpus) or (reporter_cite and reporter_cite in normalized_corpus)
-        if exact_match:
-            return 1.0, case_name, "EXACT"
+        name_to_canonical = {c.lower().strip(): c for c in self.known_cases if c}
 
-        # 2. Fuzzy string and token-set matching
+        # 1. Exact canonical catalog match by case name
+        if case_name in name_to_canonical:
+            return 1.0, name_to_canonical[case_name], "EXACT"
+
+        # 2. Match by reporter citation ONLY if party names share material tokens
+        c_tokens = set(re.findall(r'\b[a-zA-Z]{3,}\b', case_name)) - {'the', 'and', 'for', 'state', 'court', 'united', 'states'}
+        if reporter_cite:
+            for kc in self.known_cases:
+                kc_lower = kc.lower().strip()
+                if reporter_cite in kc_lower:
+                    kc_tokens = set(re.findall(r'\b[a-zA-Z]{3,}\b', kc_lower))
+                    if c_tokens and (c_tokens & kc_tokens):
+                        return 1.0, kc, "EXACT"
+
+        # 3. Fuzzy string and token-set matching against known case catalog
         fuzzy_score = 0.0
         best_match = ""
-        c_tokens = set(case_name.replace(',', ' ').replace('.', ' ').split()) - {'v', 'the', 'of', 'in', 're', 'state'}
 
         for real_case in self.known_cases:
             rc_lower = real_case.lower().strip()
@@ -139,60 +148,76 @@ class CitationConfidenceEngine:
             r2 = (fuzz.token_set_ratio(case_name, rc_lower) / 100.0) if hasattr(fuzz, "token_set_ratio") else 0.0
             ratio = max(r1, r2)
             if ratio < 0.85 and c_tokens:
-                rc_tokens = set(rc_lower.replace(',', ' ').replace('.', ' ').split()) - {'v', 'the', 'of', 'in', 're', 'state'}
+                rc_tokens = set(re.findall(r'\b[a-zA-Z]{3,}\b', rc_lower))
                 if c_tokens and c_tokens.issubset(rc_tokens):
-                    ratio = 0.95
+                    ratio = 0.90
             if ratio > fuzzy_score:
                 fuzzy_score = ratio
                 best_match = real_case
 
         fuzzy_threshold = CCS_VERIFIED_THRESHOLD * CCE_FUZZY_THRESHOLD_RATIO
-        if fuzzy_score >= fuzzy_threshold:
+        if fuzzy_score >= fuzzy_threshold and best_match:
             return round(fuzzy_score, 4), best_match, "FUZZY"
 
-        return 0.0, best_match, "NOT_FOUND"
+        return 0.0, "", "NOT_FOUND"
 
-    def _compute_support(self, citation: CitationRecord, matched_name: str) -> Tuple[float, str]:
+    def _compute_support(self, citation: CitationRecord, matched_canonical_name: str) -> Tuple[Optional[float], str, bool]:
         """
         Support (S) check: Verifies if the case opinion text entails the claimed holding.
-        Returns: (S_score, evidence_snippet)
+        Only retrieves chunks strictly belonging to the canonical case. Zero cross-case drift.
+        Returns: (S_score, evidence_snippet, evidence_available)
         """
         if not citation.holding or not citation.holding.strip():
-            # If no holding is asserted, assume neutral default support
-            return 0.50, ""
+            return None, "", False
 
-        query_name = matched_name if matched_name else citation.case_name
+        query_name = matched_canonical_name if matched_canonical_name else citation.case_name
+        if not query_name:
+            return None, "", False
+
         opinion_text = ""
 
-        # Retrieve opinion text from ChromaDB
+        # Retrieve opinion text strictly filtered by the resolved canonical case
         if self.collection is not None and self.embedder is not None:
             try:
+                # 1. Exact metadata equality filter
                 results = self.collection.query(
                     query_embeddings=[self.embedder.encode(query_name).tolist()],
-                    n_results=2,
-                    where={"case_name": {"$eq": query_name}} if matched_name else None
+                    n_results=3,
+                    where={"case_name": {"$eq": query_name}}
                 )
                 if results.get("documents") and results["documents"][0]:
                     opinion_text = " ".join(results["documents"][0])
             except Exception as e:
-                logger.debug("Chroma lookup with where filter fallback: %s", e)
+                logger.debug("Chroma exact metadata query exception: %s", e)
 
+            # 2. If metadata filter found nothing, query by embedding of case title and verify document identity
             if not opinion_text:
                 try:
-                    results = self.collection.query(
-                        query_embeddings=[self.embedder.encode(f"{query_name} {citation.holding}").tolist()],
-                        n_results=1,
+                    cand_results = self.collection.query(
+                        query_embeddings=[self.embedder.encode(query_name).tolist()],
+                        n_results=3,
                     )
-                    if results.get("documents") and results["documents"][0]:
-                        opinion_text = results["documents"][0][0]
+                    docs = cand_results.get("documents", [[]])[0]
+                    metas = cand_results.get("metadatas", [[]])[0]
+                    matched_docs = []
+                    q_lower = query_name.lower().strip()
+                    for doc_str, m in zip(docs, metas):
+                        meta_case = str(m.get("case_name", "")).lower().strip() if isinstance(m, dict) else ""
+                        if meta_case and (meta_case in q_lower or q_lower in meta_case or fuzz.ratio(meta_case, q_lower) >= 80):
+                            matched_docs.append(doc_str)
+                    if matched_docs:
+                        opinion_text = " ".join(matched_docs)
                 except Exception as e:
-                    logger.debug("Chroma lookup fallback failed: %s", e)
+                    logger.debug("Chroma canonical candidate query exception: %s", e)
 
-        # 1. NLI Cross-Encoder Entailment Scoring
+        # If opinion text is not available in the database, return UNVERIFIABLE without arbitrary 0.50 score
+        if not opinion_text or not opinion_text.strip():
+            return None, "", False
+
+        # 1. NLI Cross-Encoder Entailment Scoring strictly against this case's text
         support_score = 0.0
-        if opinion_text and self.nli_model is not None:
+        if self.nli_model is not None:
             try:
-                # Segment text into premise windows
                 step = 350
                 windows = [opinion_text[i:i+450] for i in range(0, min(len(opinion_text), 1800), step)]
                 pairs = [[w, citation.holding] for w in windows]
@@ -202,10 +227,9 @@ class CitationConfidenceEngine:
                 probs = []
                 for p in preds:
                     if isinstance(p, (list, np.ndarray)) and len(p) == 3:
-                        # Softmax: class 2 is entailment (contradiction=0, neutral=1, entailment=2)
                         exps = np.exp(p - np.max(p))
                         prob = exps / np.sum(exps)
-                        probs.append(float(prob[2]))
+                        probs.append(float(prob[2]))  # Index 2 = Entailment probability
                     elif isinstance(p, (list, np.ndarray)) and len(p) == 1:
                         probs.append(float(p[0]))
                     else:
@@ -215,9 +239,7 @@ class CitationConfidenceEngine:
             except Exception as e:
                 logger.debug("NLI prediction failed: %s", e)
                 support_score = 0.0
-
-        # 2. Semantic Fallback (Legal-BERT Cosine Similarity)
-        if support_score == 0.0 and opinion_text and self.embedder is not None and util:
+        elif self.embedder is not None and util:
             try:
                 h_vec = self.embedder.encode(citation.holding, convert_to_tensor=True)
                 doc_vec = self.embedder.encode(opinion_text[:500], convert_to_tensor=True)
@@ -225,14 +247,10 @@ class CitationConfidenceEngine:
                 support_score = min(max(sem_sim, 0.0), 1.0)
             except Exception as e:
                 logger.debug("Semantic similarity fallback failed: %s", e)
-                support_score = 0.50
+                support_score = 0.0
 
-        if not opinion_text:
-            # If opinion text wasn't found in Chroma, provide fallback
-            support_score = 0.50
-
-        evidence_snippet = opinion_text[:200] if opinion_text else ""
-        return round(support_score, 4), evidence_snippet
+        evidence_snippet = opinion_text[:200].replace("\n", " ")
+        return round(support_score, 4), evidence_snippet, True
 
     def compute_ccs(self, citation: CitationRecord) -> dict:
         """
@@ -242,17 +260,42 @@ class CitationConfidenceEngine:
           SUPPORTED, UNCERTAIN, MISATTRIBUTED, FABRICATED, UNVERIFIABLE
         """
         E, matched_name, match_type = self._compute_existence(citation)
-        S, evidence = self._compute_support(citation, matched_name)
+        S, evidence, evidence_available = self._compute_support(citation, matched_name)
 
-        # Factorized score
-        ccs = round(E * S, 4)
+        if not evidence_available:
+            # Evidence was not found in the local index -> cannot verify holding
+            ccs = 0.0
+            if E >= 0.85:
+                tier = "UNVERIFIABLE"  # Real case, but text is unindexed / unavailable
+            else:
+                if self._is_volume_covered(citation):
+                    tier = "FABRICATED"
+                else:
+                    tier = "UNVERIFIABLE"
 
-        # 5-Way Verdict Classification
+            return {
+                "ccs":                ccs,
+                "tier":               tier,
+                "existence":          round(E, 3),
+                "support":            None,
+                "evidence_available": False,
+                "exact_score":        1.0 if match_type == "EXACT" else 0.0,
+                "fuzzy_score":        round(E, 3) if match_type == "FUZZY" else 0.0,
+                "semantic_score":     None,
+                "best_match":         matched_name,
+                "evidence":           "",
+                "citation":           citation.to_dict(),
+            }
+
+        # Evidence IS available in the corpus: evaluate entailment
+        s_float = S if S is not None else 0.0
+        ccs = round(E * s_float, 4)
+
         if E >= 0.85:
             # Case exists in authority corpus
-            if ccs >= self.tau:
+            if s_float >= self.tau:
                 tier = "SUPPORTED"
-            elif ccs >= CCS_UNCERTAIN_THRESHOLD:
+            elif s_float >= CCS_UNCERTAIN_THRESHOLD:
                 tier = "UNCERTAIN"
             else:
                 # Real case, but holding is not supported by opinion text
@@ -260,24 +303,24 @@ class CitationConfidenceEngine:
         else:
             # Case does NOT exist in authority corpus
             if self._is_volume_covered(citation):
-                # Cited volume was indexed, but no such case exists there
                 tier = "FABRICATED"
             else:
-                # Volume was not ingested/covered; cannot prove it does not exist
                 tier = "UNVERIFIABLE"
 
         return {
-            "ccs":            ccs,
-            "tier":           tier,
-            "existence":      round(E, 3),
-            "support":        round(S, 3),
-            "exact_score":    1.0 if match_type == "EXACT" else 0.0,
-            "fuzzy_score":    round(E, 3) if match_type == "FUZZY" else 0.0,
-            "semantic_score": round(S, 3),
-            "best_match":     matched_name,
-            "evidence":       evidence,
-            "citation":       citation.to_dict(),
+            "ccs":                ccs,
+            "tier":               tier,
+            "existence":          round(E, 3),
+            "support":            round(s_float, 3),
+            "evidence_available": True,
+            "exact_score":        1.0 if match_type == "EXACT" else 0.0,
+            "fuzzy_score":        round(E, 3) if match_type == "FUZZY" else 0.0,
+            "semantic_score":     round(s_float, 3),
+            "best_match":         matched_name,
+            "evidence":           evidence,
+            "citation":           citation.to_dict(),
         }
+
 
     def run_on_state(self, state: LexAgentState) -> tuple:
         all_citations = (state.get("prosecutor_citations", []) +

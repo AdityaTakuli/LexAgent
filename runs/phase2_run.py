@@ -77,7 +77,15 @@ def run_phase2_test(query: str = "Does the Fourteenth Amendment protect abortion
     print("  " + str(result.get("final_answer", "")))
     print(f"  Judge Confidence: {result.get('judge_confidence', 0.0):.2f}")
     print("=" * 70)
-    print("  PHASE 2 SMOKE TEST PASSED!")
+
+    # Correctness assertions per Review.md Section 14
+    assert result is not None, "Pipeline execution returned None"
+    assert len(str(result.get("final_answer", "")).strip()) > 0, "Final answer is empty"
+    assert "judge_confidence" in result, "judge_confidence missing from state"
+    assert "prosecutor_argument" in result, "prosecutor_argument missing from state"
+    assert "defense_argument" in result, "defense_argument missing from state"
+
+    print("  PHASE 2 EXECUTION & CORRECTNESS CHECK PASSED!")
     print("=" * 70)
     return result
 

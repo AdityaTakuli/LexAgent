@@ -1,6 +1,8 @@
 # LexAgent v3.0 | judge_agent.py
 """Judge Agent — DVA+ Protocol."""
 
+import re
+import json
 from typing import List, Dict, Any
 from src.agents.state import LexAgentState
 from src.agents.prompts import SYSTEM_JUDGE, USER_JUDGE, format_mistral_prompt
@@ -72,18 +74,21 @@ def judge_node(state: LexAgentState) -> dict:
     raw = _invoke_llm(state["llm"], prompt, fallback_prompt=fallback_prompt)
     parsed = _safe_parse_json(raw, fallback_key="verdict")
 
+    use_cce = state.get("use_cce", True)
     verified_ccs_map = {}
     uncertain_ccs_map = {}
-    for data in state.get("citation_confidence_report", {}).values():
-        c_name = _clean_case_name(data.get("citation", {}).get("case_name", "")).lower()
-        if not c_name:
-            continue
-        ccs_score = float(data.get("ccs", 0.0) or 0.0)
-        tier = data.get("tier", "")
-        if tier in ("SUPPORTED", "VERIFIED"):
-            verified_ccs_map[c_name] = max(verified_ccs_map.get(c_name, 0.0), ccs_score if ccs_score > 0 else 0.85)
-        elif tier == "UNCERTAIN":
-            uncertain_ccs_map[c_name] = max(uncertain_ccs_map.get(c_name, 0.0), ccs_score if ccs_score > 0 else 0.50)
+
+    if use_cce:
+        for data in state.get("citation_confidence_report", {}).values():
+            c_name = _clean_case_name(data.get("citation", {}).get("case_name", "")).lower()
+            if not c_name:
+                continue
+            ccs_score = float(data.get("ccs", 0.0) or 0.0)
+            tier = data.get("tier", "")
+            if tier in ("SUPPORTED", "VERIFIED"):
+                verified_ccs_map[c_name] = max(verified_ccs_map.get(c_name, 0.0), ccs_score if ccs_score > 0 else 0.85)
+            elif tier == "UNCERTAIN":
+                uncertain_ccs_map[c_name] = max(uncertain_ccs_map.get(c_name, 0.0), ccs_score if ccs_score > 0 else 0.50)
 
     verified = []
     for c in parsed.get("verified_citations", []):
@@ -93,17 +98,22 @@ def judge_node(state: LexAgentState) -> dict:
                 continue
             case_name_lower = case_name.lower()
             actual_ccs = None
-            if case_name_lower in verified_ccs_map:
+
+            if not use_cce:
+                # In A2 ablation without CCE: accept cited precedent without CCE verification
+                actual_ccs = float(c.get("confidence", 0.75) or 0.75)
+            elif case_name_lower in verified_ccs_map:
                 actual_ccs = verified_ccs_map[case_name_lower]
             else:
-                c_tokens = set(case_name_lower.replace(',', ' ').replace('.', ' ').split()) - {'v', 'the', 'of', 'in', 're', 'state'}
+                c_tokens = set(re.findall(r'\b[a-zA-Z]{3,}\b', case_name_lower)) - {'the', 'and', 'for', 'state', 'court'}
                 for v_name, v_score in verified_ccs_map.items():
-                    v_tokens = set(v_name.replace(',', ' ').replace('.', ' ').split()) - {'v', 'the', 'of', 'in', 're', 'state'}
-                    if c_tokens and (c_tokens.issubset(v_tokens) or v_tokens.issubset(c_tokens)):
+                    v_tokens = set(re.findall(r'\b[a-zA-Z]{3,}\b', v_name)) - {'the', 'and', 'for', 'state', 'court'}
+                    # Match if tokens overlap heavily or one is subset of other (e.g. Riley v. Cal. -> Riley v. California)
+                    if c_tokens and (c_tokens.issubset(v_tokens) or v_tokens.issubset(c_tokens) or (len(c_tokens & v_tokens) >= 2)):
                         actual_ccs = v_score
                         break
             
-            if actual_ccs is None:
+            if use_cce and actual_ccs is None:
                 logger.info("Rejecting judge citation '%s': not verified by CCE", case_name)
                 continue
             verified.append(CitationRecord(
@@ -124,7 +134,7 @@ def judge_node(state: LexAgentState) -> dict:
             if not case_name:
                 continue
             case_name_lower = case_name.lower()
-            actual_ccs = uncertain_ccs_map.get(case_name_lower, 0.50)
+            actual_ccs = uncertain_ccs_map.get(case_name_lower, 0.50) if use_cce else 0.50
             uncertain.append(CitationRecord(
                 case_name=case_name,
                 court="",
@@ -150,13 +160,17 @@ def judge_node(state: LexAgentState) -> dict:
     except (ValueError, TypeError):
         pass
 
-    if verified:
+    if not use_cce:
+        # A2 ablation: Confidence reflects model's self-assessed confidence unconstrained by CCE
+        confidence = round(raw_model_conf if raw_model_conf > 0 else 0.70, 2)
+    elif verified:
         avg_verified_ccs = sum(c.self_confidence for c in verified) / len(verified)
         confidence = round(0.7 * avg_verified_ccs + 0.3 * raw_model_conf, 2) if raw_model_conf > 0 else round(avg_verified_ccs, 2)
     elif uncertain:
         confidence = round(min(raw_model_conf, 0.35) if raw_model_conf > 0 else 0.20, 2)
     else:
-        confidence = 0.0
+        confidence = round(min(raw_model_conf, 0.20), 2)
+
 
     return {
         "judge_verdict":              parsed.get("verdict", ""),
