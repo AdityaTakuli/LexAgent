@@ -1,0 +1,30 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Environments
+env/
+venv/
+.venv/
+ENV/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Data and Cache
+data/
+cap_raw_volumes/
+cap_chunks_cache/
+cap_chroma_corpus/
+chroma_memory/
+cap_corpus*.json
+cap_corpus_manifest.json
+cap_indexing_checkpoint.json
+cap_bm25_index.pkl
+cap_known_cases.pkl
+*.sqlite3
+
+# Scratch
+scratch/
