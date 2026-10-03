@@ -26,5 +26,13 @@ cap_bm25_index.pkl
 cap_known_cases.pkl
 *.sqlite3
 
+# Binary documents & presentation slides
+*.pdf
+*.pptx
+
+# Results & JSON data
+*.json
+!*.ipynb
+
 # Scratch
 scratch/

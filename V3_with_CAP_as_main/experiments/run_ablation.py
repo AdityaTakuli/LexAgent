@@ -50,7 +50,7 @@ from src.retrieval.dense_retriever import DenseRetriever
 from src.retrieval.bm25_retriever import BM25Retriever
 from src.retrieval.hybrid_retriever import HybridRetriever
 from src.utils.logger import get_logger
-from experiments.benchmark_cases import BENCHMARK_30_CASES
+from experiments.benchmark_cases import BENCHMARK_30_CASES, BENCHMARK_100_CASES, get_benchmark_cases
 from experiments.run_25_cases_benchmark import evaluate_single_case
 
 logger = get_logger(__name__)
@@ -115,8 +115,8 @@ def build_ablation_graph(variant: str, llm, hybrid, cce, ddc, memory, embedder):
     return builder.compile()
 
 
-def run_ablation_study(limit: int = 30):
-    test_cases = BENCHMARK_30_CASES if (limit is None or limit <= 0 or limit >= len(BENCHMARK_30_CASES)) else BENCHMARK_30_CASES[:limit]
+def run_ablation_study(limit: int = 100):
+    test_cases = get_benchmark_cases(limit)
     print("\n" + "=" * 75)
     print(f"  LEXAGENT v3.0 ABLATION STUDIES ({len(test_cases)} Cases per Variant — Full Run)")
     print("=" * 75)
@@ -245,6 +245,6 @@ def run_ablation_study(limit: int = 30):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--limit", type=int, default=30, help="Cases per ablation variant (default: 30 for full offline suite, 0 for all)")
+    parser.add_argument("--limit", type=int, default=100, help="Cases per ablation variant (default: 100 for full offline suite, 0 for all 100)")
     args = parser.parse_args()
     run_ablation_study(limit=args.limit)

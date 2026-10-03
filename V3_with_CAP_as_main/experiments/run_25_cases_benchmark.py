@@ -56,7 +56,7 @@ from src.novel.cce import CitationConfidenceEngine
 from src.novel.ddc import DynamicDebateController
 from src.novel.adaptive_memory import AdaptiveMemory
 from src.graph.lexagent_graph import build_lexagent_graph
-from experiments.benchmark_cases import BENCHMARK_30_CASES
+from experiments.benchmark_cases import BENCHMARK_30_CASES, BENCHMARK_100_CASES, get_benchmark_cases
 
 
 def silence_all_logs():
@@ -192,11 +192,11 @@ def evaluate_single_case(
 
 
 
-def run_benchmark(limit: int = 30, model_tuple=None, embedder=None, memory_namespace: Optional[str] = None) -> dict:
+def run_benchmark(limit: int = 100, model_tuple=None, embedder=None, memory_namespace: Optional[str] = None) -> dict:
     silence_all_logs()
-    test_cases_count = len(BENCHMARK_30_CASES) if (limit is None or limit <= 0 or limit >= len(BENCHMARK_30_CASES)) else limit
+    test_cases = get_benchmark_cases(limit)
     print("\n" + "=" * 75)
-    print(f"  LEXAGENT v3.0 (CAP EDITION) — {test_cases_count}-CASE FULL BENCHMARK EVALUATION")
+    print(f"  LEXAGENT v3.0 (CAP EDITION) — {len(test_cases)}-CASE FULL BENCHMARK EVALUATION")
     print("=" * 75)
 
     import pickle
@@ -246,7 +246,6 @@ def run_benchmark(limit: int = 30, model_tuple=None, embedder=None, memory_names
 
     graph = build_lexagent_graph(llm, hybrid, cce, ddc, memory, embedder)
 
-    test_cases = BENCHMARK_30_CASES if (limit is None or limit <= 0 or limit >= len(BENCHMARK_30_CASES)) else BENCHMARK_30_CASES[:limit]
     scorecards = []
     start_time = time.time()
 
@@ -389,10 +388,10 @@ def run_benchmark(limit: int = 30, model_tuple=None, embedder=None, memory_names
     }
 
 
-def run_single_agent_rag_baseline(limit: int = 30) -> dict:
+def run_single_agent_rag_baseline(limit: int = 100) -> dict:
     """Executes a Standard Single-Agent RAG Baseline (Retrieve -> Mistral-7B Prompt) for comparison."""
     silence_all_logs()
-    test_cases = BENCHMARK_30_CASES if (limit is None or limit <= 0 or limit >= len(BENCHMARK_30_CASES)) else BENCHMARK_30_CASES[:limit]
+    test_cases = get_benchmark_cases(limit)
     print("\n" + "=" * 75)
     print(f"  STANDARD SINGLE-AGENT RAG BASELINE ({len(test_cases)} Cases — Full Run)")
     print("=" * 75)
@@ -466,7 +465,7 @@ def run_single_agent_rag_baseline(limit: int = 30) -> dict:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--limit", type=int, default=30, help="Number of benchmark cases to evaluate (default: 30 for full offline suite, 0 for all)")
+    parser.add_argument("--limit", type=int, default=100, help="Number of benchmark cases to evaluate (default: 100 for full offline suite, 0 for all)")
     parser.add_argument("--memory-namespace", type=str, default=None, help="Memory namespace for benchmark isolation")
     parser.add_argument("--reuse-memory", action="store_true", help="Reuse global memory without run isolation")
     parser.add_argument("--baseline", action="store_true", help="Run standard single-agent RAG baseline instead of debate")

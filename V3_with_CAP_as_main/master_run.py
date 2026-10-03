@@ -91,7 +91,7 @@ def step_test_all_phases(query: str = DEFAULT_TEST_QUERY):
     print("=" * 78)
 
 
-def step_run_benchmark(limit: int = 30):
+def step_run_benchmark(limit: int = 100):
     print("\n" + "█" * 78)
     print(f"  STEP 3: RUNNING {limit}-CASE COMPREHENSIVE BENCHMARK EVALUATION (FULL RUN)")
     print("█" * 78)
@@ -99,7 +99,7 @@ def step_run_benchmark(limit: int = 30):
     run_benchmark(limit=limit)
 
 
-def step_run_ablation(limit: int = 30):
+def step_run_ablation(limit: int = 100):
     print("\n" + "█" * 78)
     print(f"  STEP 4: RUNNING ABLATION STUDIES ({limit} Cases per Variant — FULL SUITE)")
     print("█" * 78)
@@ -107,15 +107,15 @@ def step_run_ablation(limit: int = 30):
     run_ablation_study(limit=limit)
 
 
-def step_run_stress_test(output_file: str = "citation_stress_test_results.json"):
+def step_run_stress_test(output_file: str = "citation_stress_test_results.json", limit: int = 100):
     print("\n" + "█" * 78)
-    print("  STEP 4: RUNNING CITATION STRESS-TEST PROTOCOL (Novelty 5 Diagnostic Gate)")
+    print(f"  STEP 4: RUNNING CITATION STRESS-TEST PROTOCOL ({limit} Benchmark Cases Pool)")
     print("█" * 78)
     from experiments.run_stress_test import main as run_stress_test_main
-    return run_stress_test_main(output_file=output_file)
+    return run_stress_test_main(output_file=output_file, limit=limit)
 
 
-def step_run_baseline(limit: int = 30):
+def step_run_baseline(limit: int = 100):
     print("\n" + "█" * 78)
     print(f"  STEP: RUNNING STANDARD SINGLE-AGENT RAG BASELINE ({limit} Cases — FULL RUN)")
     print("█" * 78)
@@ -123,7 +123,7 @@ def step_run_baseline(limit: int = 30):
     run_single_agent_rag_baseline(limit=limit)
 
 
-def step_run_all(volumes_mode: str = "landmark", benchmark_limit: int = 30, ablation_limit: int = 30):
+def step_run_all(volumes_mode: str = "landmark", benchmark_limit: int = 100, ablation_limit: int = 100, stress_limit: int = 100):
     print("\n" + "█" * 78)
     print("  EXECUTING COMPLETE END-TO-END LEXAGENT v3.0 SUITE (FULL UNLIMITED RUN)")
     print("█" * 78)
@@ -132,7 +132,7 @@ def step_run_all(volumes_mode: str = "landmark", benchmark_limit: int = 30, abla
     
     # Critical Research Gate: Stress test runs first to confirm verifier zero false acceptance
     print("\n>>> EXECUTING CITATION STRESS-TEST GATE PRIOR TO BENCHMARKS <<<")
-    stress_results = step_run_stress_test()
+    stress_results = step_run_stress_test(limit=stress_limit)
     if stress_results.get("false_acceptance_rate_misattributed", 0.0) > 0.05:
         print("\n[WARNING] Misattributed citation false-acceptance rate > 5.0%. Review CCE weights!")
 
@@ -253,11 +253,12 @@ def main():
 
     # Evaluation flags
     parser.add_argument("--benchmark", action="store_true", help="Run the comprehensive benchmark evaluation")
-    parser.add_argument("--benchmark-limit", type=int, default=30, help="Number of benchmark cases to evaluate (default: 30 for full suite)")
+    parser.add_argument("--benchmark-limit", type=int, default=100, help="Number of benchmark cases to evaluate (default: 100 for full suite, 0 for all)")
     parser.add_argument("--baseline", action="store_true", help="Run standard single-agent RAG baseline")
     parser.add_argument("--ablation", action="store_true", help="Run the 4-variant ablation studies")
-    parser.add_argument("--ablation-limit", type=int, default=30, help="Number of cases per ablation variant (default: 30 for full suite)")
+    parser.add_argument("--ablation-limit", type=int, default=100, help="Number of cases per ablation variant (default: 100 for full suite, 0 for all)")
     parser.add_argument("--stress-test", action="store_true", help="Run Citation Stress-Test Protocol (Novelty 5: 6-class controlled diagnostic)")
+    parser.add_argument("--stress-limit", type=int, default=100, help="Number of benchmark cases pool for stress test (default: 100)")
 
     # End-to-end flag
     parser.add_argument("--all", action="store_true", help="Run complete end-to-end pipeline (Build DB -> Tests -> Stress Test -> Benchmark -> Ablation)")
@@ -275,7 +276,12 @@ def main():
         return
 
     if args.all:
-        step_run_all(volumes_mode=args.volumes, benchmark_limit=args.benchmark_limit, ablation_limit=args.ablation_limit)
+        step_run_all(
+            volumes_mode=args.volumes,
+            benchmark_limit=args.benchmark_limit,
+            ablation_limit=args.ablation_limit,
+            stress_limit=args.stress_limit,
+        )
         return
 
     if args.build_db:
@@ -308,7 +314,7 @@ def main():
         step_run_ablation(limit=args.ablation_limit)
 
     if args.stress_test:
-        step_run_stress_test()
+        step_run_stress_test(limit=args.stress_limit)
 
 
 if __name__ == "__main__":
