@@ -1,0 +1,23 @@
+% Fig. 6 - ablation of the repaired system, one panel per measure (full text width).
+\begin{tikzpicture}
+\begin{groupplot}[
+    group style={group size=3 by 1, horizontal sep=1.55cm},
+    ybar, width=5.9cm, height=4.2cm, /pgf/bar width=11pt,
+    symbolic x coords={Full,A1,A2,A3,A4}, xtick=data, enlarge x limits=0.16,
+    ymin=0,
+    x tick label style={font=\sffamily\scriptsize}, y tick label style={font=\sffamily\scriptsize},
+    title style={font=\sffamily\scriptsize\bfseries, yshift=-3pt},
+    ymajorgrids, grid style={black!12}, axis line style={black!45}, tick style={black!45},
+    nodes near coords, nodes near coords style={font=\sffamily\tiny, text=black!85},
+]
+\nextgroupplot[title={Target cited by the answer (\%)}, ymax=100,
+    nodes near coords style={/pgf/number format/.cd, fixed, fixed zerofill, precision=1}]
+\addplot[fill=cRetr, draw=none] coordinates {(Full,\ResPaFullTargetAnswer) (A1,\ResPaAOneTargetAnswer) (A2,\ResPaATwoTargetAnswer) (A3,\ResPaAThreeTargetAnswer) (A4,\ResPaAFourTargetAnswer)};
+\nextgroupplot[title={Answers on no existing authority (\%)}, ymax=30,
+    nodes near coords style={/pgf/number format/.cd, fixed, fixed zerofill, precision=1}]
+\addplot[fill=cPros, draw=none] coordinates {(Full,\ResPaFullNoAuthority) (A1,\ResPaAOneNoAuthority) (A2,\ResPaATwoNoAuthority) (A3,\ResPaAThreeNoAuthority) (A4,\ResPaAFourNoAuthority)};
+\nextgroupplot[title={Run time for \ResTestCases\ questions (min)}, ymax=240,
+    nodes near coords style={/pgf/number format/.cd, fixed, precision=0}]
+\addplot[fill=cNeutral, draw=none] coordinates {(Full,\ResPaFullMinutes) (A1,\ResPaAOneMinutes) (A2,\ResPaATwoMinutes) (A3,\ResPaAThreeMinutes) (A4,\ResPaAFourMinutes)};
+\end{groupplot}
+\end{tikzpicture}

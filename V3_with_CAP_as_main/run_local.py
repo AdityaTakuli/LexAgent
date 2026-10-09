@@ -6,7 +6,7 @@ Works on Linux, macOS and Windows. Needs only a system Python 3.10+ to start;
 everything else is installed into a local .venv next to this file.
 
     python run_local.py setup            # create .venv and install requirements
-    python run_local.py build            # download CAP volumes and build the database
+    python run_local.py build            # download CAP volumes, chunk them, then build the database
     python run_local.py smoke            # Phase 1 -> 2 -> 3 smoke tests
     python run_local.py eval --limit 5   # stress test, benchmark, baseline, ablation
     python run_local.py all --limit 5    # setup -> build -> smoke -> eval
@@ -31,7 +31,8 @@ IS_WINDOWS = os.name == "nt"
 VENV_PYTHON = os.path.join(VENV_DIR, "Scripts" if IS_WINDOWS else "bin", "python.exe" if IS_WINDOWS else "python")
 
 # On Windows, PyPI ships a CPU-only torch wheel, so a CUDA build is installed from this index instead.
-TORCH_CUDA_INDEX = os.environ.get("LEXAGENT_TORCH_INDEX", "https://download.pytorch.org/whl/cu126")
+# CUDA 12.8 builds are the first that support RTX 50-series (Blackwell) GPUs and still run on older cards.
+TORCH_CUDA_INDEX = os.environ.get("LEXAGENT_TORCH_INDEX", "https://download.pytorch.org/whl/cu128")
 
 DRY_RUN = False
 
@@ -114,6 +115,9 @@ def step_setup(env):
 
 
 def step_build(args, env):
+    # Three separate stages: download raw volumes, chunk them, then embed and index.
+    master(["--download-cap", "--volumes", args.volumes], env)
+    master(["--chunk-cap", "--volumes", args.volumes], env)
     cmd = ["--build-db", "--volumes", args.volumes, "--batch-size", env["LEXAGENT_BATCH_SIZE"]]
     if args.overwrite:
         cmd.append("--overwrite")

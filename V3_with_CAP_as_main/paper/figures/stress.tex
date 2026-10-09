@@ -1,0 +1,23 @@
+% Fig. 5 - verdicts of the citation checker by citation type (column width).
+\begin{tikzpicture}
+\begin{axis}[
+    xbar stacked, width=0.74\columnwidth, height=5.4cm,
+    bar width=8pt, enlarge y limits=0.11,
+    xmin=0, xmax=100, xtick={0,25,50,75,100},
+    xlabel={share of citations of that type (\%)},
+    ytick={0,1,2,3,4,5}, y dir=reverse,
+    yticklabels={{Correct ($n$=\ResStressCorrectN)},{Holding swapped ($n$=\ResStressMisattrN)},{False-holding distractor ($n$=\ResStressCaseholdN)},{Invented, with cite ($n$=\ResStressFabCiteN)},{Invented, no cite ($n$=\ResStressFabNoCiteN)},{Real, outside corpus ($n$=\ResStressOffCorpusN)}},
+    y tick label style={font=\sffamily\scriptsize, align=right},
+    x tick label style={font=\sffamily\scriptsize}, xlabel style={font=\sffamily\scriptsize},
+    xmajorgrids, grid style={black!12}, axis line style={black!45}, tick style={black!45},
+    legend style={font=\sffamily\tiny, draw=none, fill=none, at={(0.20,1.03)}, anchor=south, legend columns=3, /tikz/every even column/.append style={column sep=5pt}},
+    legend image code/.code={\draw[#1, draw=none] (0cm,-0.08cm) rectangle (0.24cm,0.10cm);},
+]
+\addplot[fill=cVerify,  draw=white, line width=0.5pt] table[x=supported,     y=row] {generated/stress_verdicts.dat};
+\addplot[fill=cCtrl,    draw=white, line width=0.5pt] table[x=uncertain,     y=row] {generated/stress_verdicts.dat};
+\addplot[fill=cPros,    draw=white, line width=0.5pt] table[x=misattributed, y=row] {generated/stress_verdicts.dat};
+\addplot[fill=cFab,     draw=white, line width=0.5pt] table[x=fabricated,    y=row] {generated/stress_verdicts.dat};
+\addplot[fill=cNeutral, draw=white, line width=0.5pt] table[x=unverifiable,  y=row] {generated/stress_verdicts.dat};
+\legend{Supported,Uncertain,Misattributed,Fabricated,Unverifiable}
+\end{axis}
+\end{tikzpicture}

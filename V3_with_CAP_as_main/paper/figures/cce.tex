@@ -1,0 +1,44 @@
+% Fig. 3 - decision procedure of the Citation Confidence Engine (column width, drawn at natural size).
+\begin{tikzpicture}[
+    x=1cm, y=1cm,
+    font=\sffamily\scriptsize,
+    >={Stealth[length=1.7mm,width=1.3mm]},
+    proc/.style={draw=#1!75!black, fill=#1!15, rounded corners=2.5pt, align=center, line width=0.6pt,
+                 minimum height=8mm, text width=52mm, inner sep=2pt},
+    test/.style={draw=cCtrl!80!black, fill=cCtrl!18, diamond, aspect=2.6, align=center, line width=0.6pt, inner sep=0.5pt, text width=17mm},
+    out/.style={draw=#1!80!black, fill=#1!30, rounded corners=7pt, align=center, line width=0.7pt,
+                minimum height=7mm, text width=20mm, inner sep=1.5pt, font=\sffamily\tiny},
+    fl/.style={->, line width=0.7pt, draw=black!72},
+    lbl/.style={font=\sffamily\tiny, text=black!75, inner sep=1pt},
+]
+\node[proc=cUser]   (in)  at (-0.90,9.75) {Citation from an agent:\\case name, reporter cite, asserted holding};
+\node[proc=cRetr]   (ex)  at (-0.90,8.55) {\textbf{1. Existence} $E$: exact name, else fuzzy name\\(both parties agree, or typo-level similarity)};
+\node[proc=cRetr]   (rs)  at (-0.90,7.35) {\textbf{2. Resolve} name + cite to one report in the\\case catalog; check the cite against the name};
+\node[test]         (t1)  at (-0.90,5.95) {$E \geq 0.85$?};
+\node[test]         (t2)  at (-0.90,4.40) {opinion text\\in corpus?};
+\node[proc=cVerify] (nli) at (-0.90,2.90) {\textbf{3. Support} $S$: top-3 passages \emph{of that opinion},\\entailment of the holding by the validated model};
+\node[test]         (t3)  at (-0.90,1.45) {$S$ against $\tau_g$};
+
+\node[out=cFab]     (fab) at (3.05,6.40) {\textbf{FABRICATED}\\cited volume in corpus};
+\node[out=cNeutral] (unv) at (3.05,5.50) {\textbf{UNVERIFIABLE}\\volume not in corpus};
+\node[out=cNeutral] (un2) at (3.05,4.40) {\textbf{UNVERIFIABLE}\\order entry only};
+\node[out=cVerify]  (sup) at (-3.25,-0.05) {\textbf{SUPPORTED}\\$S \geq \tau_g$};
+\node[out=cCtrl]    (unc) at (-0.90,-0.05) {\textbf{NOT SHOWN}\\$S < \tau_g$};
+\node[out=cPros]    (mis) at (1.45,-0.05) {\textbf{MISATTRIBUTED}\\contradiction $\geq 0.90$};
+
+\draw[fl] (in) -- (ex);
+\draw[fl] (ex) -- (rs);
+\draw[fl] (rs) -- (t1);
+\draw[fl] (t1) -- node[lbl, right] {yes} (t2);
+\draw[fl] (t2) -- node[lbl, right] {yes} (nli);
+\draw[fl] (nli) -- (t3);
+\draw[fl] (t1.east) -- node[lbl, above, pos=0.5] {no} ++(0.75,0) |- (fab.west);
+\draw[fl] (t1.east) -- ++(0.75,0) |- (unv.west);
+\draw[fl] (t2.east) -- node[lbl, above, pos=0.3] {no} (un2.west);
+\draw[fl] (t3.south) -- (unc.north);
+\draw[fl] (t3.west) -| (sup.north);
+\draw[fl] (t3.east) -| (mis.north);
+\node[lbl, text width=23mm, align=left, anchor=west, text=black!75] at (1.85,1.45) {supported, but the cite belongs to another case: UNCERTAIN};
+\node[lbl, anchor=west, text=black!80] at (-4.35,-0.95) {Score reported to the debate: $\mathrm{CCS} = E \times S$ \ (0 when the support step is not reached)};
+\node[lbl, anchor=west, text=black!80] at (-4.35,-1.30) {Gate closed (no validated model): step 3 is skipped, the tier is VERIFIED, $\mathrm{CCS} = E$};
+\end{tikzpicture}

@@ -115,7 +115,9 @@ def build_ablation_graph(variant: str, llm, hybrid, cce, ddc, memory, embedder):
     return builder.compile()
 
 
-def run_ablation_study(limit: int = 100):
+def run_ablation_study(limit: int = 100, only: list = None):
+    """Run the ablation variants. `only` re-runs just the named variants (e.g. ["A2"]) and
+    replaces their rows in the saved summary, leaving the other variants' rows as they are."""
     test_cases = get_benchmark_cases(limit)
     print("\n" + "=" * 75)
     print(f"  LEXAGENT v3.0 ABLATION STUDIES ({len(test_cases)} Cases per Variant — Full Run)")
@@ -158,12 +160,19 @@ def run_ablation_study(limit: int = 100):
         ("A4", "w/o DDC (Fixed 1-round termination)"),
     ]
 
+    if only:
+        unknown = [code for code in only if code not in {v[0] for v in variants}]
+        if unknown:
+            raise ValueError(f"Unknown ablation variant(s): {unknown}")
+        variants = [v for v in variants if v[0] in only]
+
     # Evaluates on full benchmark suite or specified limit
     summary_table = []
 
     for v_code, v_name in variants:
         print(f"\nEvaluating Variant [{v_code}]: {v_name}...")
-        variant_memory = AdaptiveMemory(namespace=f"ablation_{ablation_run_id}_{v_code}")
+        variant_memory = AdaptiveMemory(namespace=f"ablation_{ablation_run_id}_{v_code}",
+                                        cache_mode=os.environ.get("LEXAGENT_EVAL_MEMORY_CACHE", "off"))
         graph = build_ablation_graph(v_code, llm, hybrid, cce, ddc, variant_memory, embedder)
 
         cards = []
@@ -237,6 +246,12 @@ def run_ablation_study(limit: int = 100):
 
     os.makedirs(RESULTS_DIR, exist_ok=True)
     out_path = os.path.join(RESULTS_DIR, "ablation_summary.json")
+    if only and os.path.exists(out_path):
+        # A partial re-run: keep the rows of the variants that were not run again.
+        with open(out_path, "r", encoding="utf-8") as f:
+            previous = json.load(f)
+        rerun = {row["variant"]: row for row in summary_table}
+        summary_table = [rerun.pop(row["variant"], row) for row in previous] + list(rerun.values())
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(summary_table, f, indent=2)
     print(f"\nAblation results saved to: {out_path}")
@@ -246,5 +261,6 @@ def run_ablation_study(limit: int = 100):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--limit", type=int, default=100, help="Cases per ablation variant (default: 100 for full offline suite, 0 for all 100)")
+    parser.add_argument("--variants", type=str, default="", help="Comma-separated variants to run (Full,A1,A2,A3,A4). Default: all. A subset replaces only those rows in the saved summary.")
     args = parser.parse_args()
-    run_ablation_study(limit=args.limit)
+    run_ablation_study(limit=args.limit, only=[v.strip() for v in args.variants.split(",") if v.strip()] or None)

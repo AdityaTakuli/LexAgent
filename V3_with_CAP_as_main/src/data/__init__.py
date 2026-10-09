@@ -2,6 +2,14 @@ from .corpus_schema import CorpusDocument, CitationRecord
 from .chunking import chunk_document, chunk_corpus
 from .cap_ingest import (
     download_cap_volume,
+    chunk_cap_volume,
+    run_download_stage,
+    run_chunk_stage,
+    inspect_raw_volume,
+    inspect_chunk_volume,
+    load_raw_volume,
+    load_chunk_volume,
+    load_cap_chunks,
     build_cap_corpus,
     build_cap_corpus_in_portions,
     extract_known_cases_from_chunks,
@@ -17,6 +25,14 @@ __all__ = [
     "chunk_document",
     "chunk_corpus",
     "download_cap_volume",
+    "chunk_cap_volume",
+    "run_download_stage",
+    "run_chunk_stage",
+    "inspect_raw_volume",
+    "inspect_chunk_volume",
+    "load_raw_volume",
+    "load_chunk_volume",
+    "load_cap_chunks",
     "build_cap_corpus",
     "build_cap_corpus_in_portions",
     "extract_known_cases_from_chunks",
@@ -25,4 +41,3 @@ __all__ = [
     "parse_volume_selection",
     "write_cap_manifest",
 ]
-

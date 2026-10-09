@@ -23,8 +23,8 @@ from config import (
 from src.utils.chroma_sync import ensure_chroma_ready
 from src.models.load_model import load_embedder
 from src.novel.cce import CitationConfidenceEngine
-from src.evaluation.stress_test import run_citation_stress_test
-from experiments.benchmark_cases import BENCHMARK_30_CASES, BENCHMARK_100_CASES, get_benchmark_cases
+from src.evaluation.stress_test import real_cases_outside_corpus, run_citation_stress_test
+from experiments.benchmark_cases import BENCHMARK_30_CASES, BENCHMARK_100_CASES, get_benchmark_cases, split_benchmark_by_source_text
 
 
 def main(output_file: str = "citation_stress_test_results.json", limit: int = 100):
@@ -43,9 +43,13 @@ def main(output_file: str = "citation_stress_test_results.json", limit: int = 10
     collection_name = "cap_authorities" if ("cap_authorities" in colls or not colls) else colls[0]
     collection = client.get_or_create_collection(collection_name)
 
-    cce = CitationConfidenceEngine(collection, embedder, KNOWN_CASES_PATH)
+    cce = CitationConfidenceEngine(collection, embedder, KNOWN_CASES_PATH, policy="legacy")
     cases = get_benchmark_cases(limit)
-    results = run_citation_stress_test(cce, cases)
+    # Class 6 must be real cases that are absent from THIS corpus, not from the landmark preset.
+    _, excluded = split_benchmark_by_source_text()
+    off_corpus = real_cases_outside_corpus(cce, excluded)
+    print(f"  Corpus-supported benchmark cases: {len(cases)} | real cases outside the corpus (class 6): {len(off_corpus)}")
+    results = run_citation_stress_test(cce, cases, off_corpus)
 
     print("\n" + "─" * 85)
     print(f"  {'Citation Type':<25} | {'Total':<6} | {'Accepted':<9} | {'Rejected':<9} | {'Verdict Breakdown'}")

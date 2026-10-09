@@ -65,6 +65,10 @@ CORPUS_MANIFEST_PATH = os.path.join(DRIVE_BASE, "cap_corpus_manifest.json").repl
 CAP_RAW_DIR          = os.path.join(DRIVE_BASE, "cap_raw_volumes").replace("\\", "/")  # Checkpointed raw volume JSONs
 CAP_CHUNKS_DIR       = os.path.join(DRIVE_BASE, "cap_chunks_cache").replace("\\", "/")  # Checkpointed per-volume chunks
 INDEXING_CHECKPOINT_PATH = os.path.join(DRIVE_BASE, "cap_indexing_checkpoint.json").replace("\\", "/")  # Resumable indexing progress
+CAP_DOWNLOAD_CHECKPOINT_PATH = os.path.join(DRIVE_BASE, "cap_download_checkpoint.json").replace("\\", "/")  # Stage 1 ledger (per-volume state + 64-volume batches)
+CAP_CHUNK_CHECKPOINT_PATH    = os.path.join(DRIVE_BASE, "cap_chunk_checkpoint.json").replace("\\", "/")     # Stage 2 ledger (per-volume state + 64-volume batches)
+CAP_BUILD_STATE_PATH         = os.path.join(DRIVE_BASE, "cap_build_state.json").replace("\\", "/")          # Which corpus the BM25 / known-cases / corpus JSON were built from
+CASE_CATALOG_PATH            = os.path.join(DRIVE_BASE, "cap_case_catalog.json").replace("\\", "/")         # Every report in the corpus (name, cite, year, length), used to find the actual opinion for a citation
 
 # Adaptive Memory ChromaDB Path
 DRIVE_CHROMA_MEMORY_PATH = os.path.join(DRIVE_BASE, "chroma_memory").replace("\\", "/")
@@ -80,6 +84,12 @@ RESULTS_DIR             = os.path.join(DRIVE_BASE, "results").replace("\\", "/")
 # CAP (CASELAW ACCESS PROJECT) CONFIGURATION
 # ══════════════════════════════════════════════════════
 CAP_BASE_URL = os.environ.get("LEXAGENT_CAP_BASE_URL", "https://static.case.law")
+
+# CAP ends at U.S. Reports volume 572. Later volumes can be imported from the Supreme Court's
+# official bound-volume PDFs (--download-us-reports-pdf).
+US_REPORTS_PDF_URL = os.environ.get("LEXAGENT_US_REPORTS_PDF_URL", "https://www.supremecourt.gov/opinions/boundvolumes/{volume}BV.pdf")
+US_REPORTS_INDEX_URL = os.environ.get("LEXAGENT_US_REPORTS_INDEX_URL", "https://www.supremecourt.gov/opinions/USReports.aspx")
+US_REPORTS_PDF_DIR = os.path.join(DRIVE_BASE, "us_reports_bound_volumes").replace("\\", "/")
 
 # Landmark 27 Volumes that directly cover all 30 constitutional & statutory benchmark cases
 LANDMARK_CAP_VOLUMES = [
@@ -115,6 +125,9 @@ LANDMARK_CAP_VOLUMES = [
 # Mode selection: "landmark" (default), "modern" (300-585), "all" (1-600), or custom list/range
 CAP_VOLUMES_MODE = os.environ.get("LEXAGENT_CAP_VOLUMES", "landmark")
 
+# Staged pipeline: a batch checkpoint is committed after every N volumes of the download and chunk stages
+CAP_CHECKPOINT_INTERVAL = int(os.environ.get("LEXAGENT_CHECKPOINT_INTERVAL", "64"))
+
 # ══════════════════════════════════════════════════════
 # MODELS
 # ══════════════════════════════════════════════════════
@@ -137,6 +150,16 @@ TAU_ACCEPTANCE_THRESHOLD = 0.70  # Conformal / Factorized acceptance threshold
 
 # NLI Cross-Encoder for Entailment Support (Novelty 1)
 NLI_MODEL_NAME = "cross-encoder/nli-deberta-v3-small"
+# How the citation checker turns its findings into the verdict the rest of the system acts on:
+#   "gated"  (default) existence and holding support are reported separately. The support verdict
+#            may steer the judge, the controller and the memory only if a support model has been
+#            validated on held-out labelled citations (the gate file below). Until then a citation
+#            that exists is "VERIFIED" (existence only) and its support score is information.
+#   "legacy" the behaviour of the runs made before the forensic audit, kept to reproduce them.
+CCE_POLICY = os.environ.get("LEXAGENT_CCE_POLICY", "gated")
+# Written by experiments/v2/e2_verifier_validation.py; absent or "validated": false = gate closed.
+CCE_GATE_PATH = os.environ.get("LEXAGENT_CCE_GATE_FILE", os.path.join(DRIVE_BASE, "cce_support_gate.json").replace("\\", "/"))
+CCE_GATE_MIN_AUC = 0.90  # a support model must reach this on the held-out split to open the gate
 
 # Legacy CCS weights (for backward compatibility / ablation comparisons)
 CCS_EXACT_WEIGHT    = 0.50
@@ -157,9 +180,42 @@ DDC_MIN_GAPS_TO_CONTINUE      = 1
 DDC_CHALLENGE_STRENGTH_THRESH = 0.5
 
 # ══════════════════════════════════════════════════════
+# DEBATE PROTOCOL (repair 6 of the forensic audit)
+# ══════════════════════════════════════════════════════
+# How a debate keeps what it verified, what the judge reads, and when the controller stops:
+#   "v1"      as in every run made up to 7 October 2026: each round replaces the citations and the
+#             citation report of the previous one, the judge reads the last report only, and the
+#             controller continues on weak scores or on the defense's self-reported strength.
+#   "ledger"  a per-debate ledger keeps the best verdict and its evidence for every citation of
+#             every round; the judge reads the ledger and is instructed by tier, not by a score
+#             threshold; the controller continues only while no supported citation exists, a gap
+#             remains and the last round added a new passage or a new supported citation.
+# A state that carries its own "protocol" key (every runner in experiments/v2 sets one) wins.
+DEBATE_PROTOCOL = os.environ.get("LEXAGENT_DEBATE_PROTOCOL", "v1")
+DEBATE_PROTOCOLS = ("v1", "ledger")
+LEDGER_EVIDENCE_CHARS = 300  # characters of the evidence window the judge is shown per citation
+
+# ══════════════════════════════════════════════════════
+# RETRIEVAL V2 (repair 7 of the forensic audit)
+# ══════════════════════════════════════════════════════
+# A second, separate retrieval index. The Legal-BERT collection is kept: the citation checker was
+# validated on it and continues to use it. Built by runs/build_retrieval_v2.py.
+RETRIEVAL_V2_DIR            = os.path.join(DRIVE_BASE, "retrieval_v2").replace("\\", "/")
+RETRIEVAL_V2_MODEL          = "BAAI/bge-base-en-v1.5"
+RETRIEVAL_V2_QUERY_PREFIX   = "Represent this sentence for searching relevant passages: "
+RETRIEVAL_V2_MAX_TOKENS     = 512
+RETRIEVAL_V2_PER_CASE_LIMIT = 2   # at most this many passages of one case in the fused list
+
+# ══════════════════════════════════════════════════════
 # ADAPTIVE MEMORY (NOVEL component)
 # ══════════════════════════════════════════════════════
 MEMORY_CACHE_THRESHOLD      = 0.92
+# How the verdict cache decides that a question was answered before:
+#   "exact"      the same question after normalising case, whitespace and punctuation (default)
+#   "similarity" embedding cosine above MEMORY_CACHE_THRESHOLD. Kept only to reproduce the runs made
+#                before the forensic audit: it returns answers written for other questions.
+#   "off"        never. Evaluation runners use this: a benchmark of distinct questions has nothing to cache.
+MEMORY_CACHE_MODE           = os.environ.get("LEXAGENT_MEMORY_CACHE", "exact")
 MEMORY_HIGH_RISK_CCS_THRESH = 0.45
 
 # ══════════════════════════════════════════════════════

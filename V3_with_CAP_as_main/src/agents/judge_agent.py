@@ -4,12 +4,17 @@
 import re
 import json
 from typing import List, Dict, Any
-from src.agents.state import LexAgentState
-from src.agents.prompts import SYSTEM_JUDGE, USER_JUDGE, format_mistral_prompt
+from config import LEDGER_EVIDENCE_CHARS
+from src.agents.state import LexAgentState, debate_protocol
+from src.agents.prompts import (
+    SYSTEM_JUDGE, USER_JUDGE, SYSTEM_JUDGE_LEDGER, USER_JUDGE_LEDGER, format_mistral_prompt
+)
 from src.agents.prosecutor_agent import (
     _invoke_llm, _safe_parse_json, _safe_year, _clean_case_name
 )
+from src.data.case_catalog import names_match
 from src.data.corpus_schema import CitationRecord
+from src.novel.ledger import RELIABLE_TIERS, clean_name, format_for_judge
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -47,9 +52,147 @@ def _format_ccs_report(report: dict) -> str:
     return "\n".join(lines)
 
 
+def _find_in_ledger(case_name: str, ledger: dict):
+    """The ledger entry a name written by the judge refers to: the same cleaned name, else the same
+    two parties. (The v1 rule accepted any two shared words, so that one "United States v." case
+    could stand in for another.)"""
+    wanted = clean_name(case_name)
+    if not wanted:
+        return None
+    for entry in ledger.values():
+        if wanted in (clean_name(entry.get("case_name", "")), clean_name(entry.get("cited_as", ""))):
+            return entry
+    for entry in ledger.values():
+        if names_match(case_name, entry.get("case_name", "")) or names_match(case_name, entry.get("cited_as", "")):
+            return entry
+    return None
+
+
+def _judge_from_ledger(state: LexAgentState) -> dict:
+    """Ledger protocol: the judge reads the record of all rounds and is instructed by verdict.
+
+    The program still decides what the answer rests on: a decision the judge relies on counts only
+    if the ledger holds it as SUPPORTED (or VERIFIED while no support model is validated). A decision
+    the judge relied on whose holding was not shown is kept and reported as uncertain, not dropped.
+    """
+    ledger = state.get("citation_ledger") or {}
+    user_content = USER_JUDGE_LEDGER.format(
+        query=state["query"],
+        jurisdiction=state.get("jurisdiction", "US_Federal"),
+        debate_history=_format_debate_history(state.get("debate_history", [])),
+        ccs_report=format_for_judge(ledger, LEDGER_EVIDENCE_CHARS),
+        reflection_summary=f"Gaps: {state.get('reflection_gaps', [])}. Quality: {state.get('reflection_score', 0.5):.2f}",
+    )
+    prompt = format_mistral_prompt(SYSTEM_JUDGE_LEDGER, user_content)
+    fallback_prompt = format_mistral_prompt(
+        "You are the SENIOR JUDGE in a legal debate. Respond ONLY in valid JSON.",
+        f"Deliver ruling on: {state['query']}.\nProvide JSON with 'verdict', 'legal_holding', 'verified_citations', 'uncertain_citations', 'rejected_citations', 'confidence', 'reasoning'."
+    )
+    parsed = _safe_parse_json(_invoke_llm(state["llm"], prompt, fallback_prompt=fallback_prompt), fallback_key="verdict")
+
+    verified, uncertain, seen = [], [], set()
+
+    def record(entry: dict, given: dict, confidence: float, note: str = "") -> CitationRecord:
+        return CitationRecord(
+            case_name=entry.get("case_name") or _clean_case_name(given.get("case_name", "")),
+            court=str(given.get("court", "") or "Supreme Court"),
+            year=_safe_year(given.get("year")),
+            holding=note or str(given.get("holding", "") or entry.get("holding", "") or ""),
+            self_confidence=confidence,
+            agent_source="judge",
+            reporter_cite=str(entry.get("reporter_cite", "") or ""),
+        )
+
+    for given in parsed.get("verified_citations", []) or []:
+        if not isinstance(given, dict):
+            continue
+        name = _clean_case_name(given.get("case_name", ""))
+        entry = _find_in_ledger(name, ledger) if name else None
+        if entry is None:
+            if name:
+                logger.info("Judge citation '%s' is not in the citation record; not counted", name)
+            continue
+        key = entry.get("resolved_doc_id") or clean_name(entry.get("case_name", ""))
+        if key in seen:
+            continue
+        seen.add(key)
+        if entry.get("tier") in RELIABLE_TIERS:
+            score = float(entry.get("ccs") or 0.0)
+            verified.append(record(entry, given, score if score > 0 else 0.85))
+        elif entry.get("tier") in ("NOT_SHOWN", "UNCERTAIN"):
+            logger.info("Judge relied on '%s' (%s); reported as uncertain", name, entry.get("tier"))
+            uncertain.append(record(entry, given, 0.50, note="relied on by the judge; holding not shown in the passages read"))
+        else:
+            logger.info("Judge citation '%s' is %s in the citation record; not counted", name, entry.get("tier"))
+
+    for given in parsed.get("uncertain_citations", []) or []:
+        if not isinstance(given, dict):
+            continue
+        name = _clean_case_name(given.get("case_name", ""))
+        if not name:
+            continue
+        entry = _find_in_ledger(name, ledger) or {}
+        key = entry.get("resolved_doc_id") or clean_name(entry.get("case_name", "") or name)
+        if key in seen:
+            continue
+        seen.add(key)
+        uncertain.append(record(entry, given, 0.50, note=str(given.get("note", "") or "")))
+
+    final_answer = parsed.get("legal_holding") or parsed.get("verdict")
+    if not final_answer or str(final_answer).strip() == "":
+        if verified:
+            final_answer = f"Based on verified precedent ({', '.join(c.case_name for c in verified)}), {parsed.get('reasoning', 'the legal proposition is resolved.')}"
+        else:
+            final_answer = "Insufficient evidence for a verified answer."
+
+    try:
+        self_rating = min(max(float(parsed.get("confidence", 0.0)), 0.0), 1.0)
+    except (ValueError, TypeError):
+        self_rating = 0.0
+    if verified:
+        mean_score = sum(c.self_confidence for c in verified) / len(verified)
+        confidence = round(0.7 * mean_score + 0.3 * self_rating, 2) if self_rating > 0 else round(mean_score, 2)
+    elif uncertain:
+        confidence = round(min(self_rating, 0.35) if self_rating > 0 else 0.20, 2)
+    else:
+        confidence = round(min(self_rating, 0.20), 2)
+
+    # The parts of the confidence, reported next to the blended number.
+    existing = [e for e in ledger.values() if e.get("tier") not in ("FABRICATED", "UNVERIFIABLE")]
+    reliable = [e for e in existing if e.get("tier") in RELIABLE_TIERS]
+    components = {
+        "decisions_cited_in_the_debate": len(ledger),
+        "existence_rate": round(len(existing) / len(ledger), 3) if ledger else None,
+        "support_rate_among_existing": round(len(reliable) / len(existing), 3) if existing else None,
+        "judge_self_rating": self_rating,
+    }
+    return {
+        "judge_verdict":              parsed.get("verdict", ""),
+        "judge_confidence":           confidence,
+        "judge_verified_citations":   verified,
+        "judge_uncertain_citations":  uncertain,
+        "judge_reasoning":            parsed.get("reasoning", ""),
+        "final_answer":               final_answer,
+        "structured_output": {
+            "answer":                final_answer,
+            "confidence":            confidence,
+            "confidence_components": components,
+            "verdict":               parsed.get("verdict", ""),
+            "verified_citations":    [c.to_dict() for c in verified],
+            "uncertain_citations":   [c.to_dict() for c in uncertain],
+            "rejected_citations":    parsed.get("rejected_citations", []),
+            "debate_rounds":         state.get("debate_round", 0) + 1,
+            "reasoning":             parsed.get("reasoning", ""),
+        },
+    }
+
+
 def judge_node(state: LexAgentState) -> dict:
     logger.info("Judge node: rendering verdict for round %d",
                 state.get("debate_round", 0))
+
+    if state.get("use_cce", True) and debate_protocol(state) == "ledger":
+        return _judge_from_ledger(state)
 
     debate_history_str = _format_debate_history(state.get("debate_history", []))
     ccs_report = _format_ccs_report(state.get("citation_confidence_report", {}))

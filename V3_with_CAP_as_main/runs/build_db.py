@@ -1,11 +1,17 @@
 # LexAgent v3.0 | build_db.py
 """Build primary Harvard CAP ChromaDB, BM25, and known_cases catalog across multiple volumes.
 
+This is STAGE 3 of the staged CAP pipeline (embedding / indexing). It consumes the verified
+per-volume chunk caches written by the chunk stage and never downloads or chunks anything:
+    python master_run.py --download-cap   (stage 1: network -> raw JSON)
+    python master_run.py --chunk-cap      (stage 2: raw JSON -> chunks)
+    python master_run.py --build-db       (stage 3: chunks -> BM25 + ChromaDB, GPU)
+
 Supports:
   - Resumable ChromaDB dense vector indexing (auto-resumes from last checkpoint if interrupted)
-  - Portion-based volume chunking & chunk caching to prevent data loss
   - Immediate persistence of BM25 lexical index and known_cases catalog
   - Intelligent hardware detection (GPU acceleration vs CPU fallback) with ETA reporting
+  - Nothing is deleted unless --overwrite is passed, and --overwrite never touches raw or chunk caches
 """
 
 import argparse
@@ -13,6 +19,7 @@ from datetime import datetime, timezone
 import json
 import os
 import pickle
+import re
 import sys
 import time
 
@@ -22,7 +29,8 @@ import chromadb
 
 from config import (
     BM25_INDEX_PATH,
-    CAP_RAW_DIR,
+    CAP_BUILD_STATE_PATH,
+    CASE_CATALOG_PATH,
     CHROMA_CORPUS_PATH,
     DRIVE_CHROMA_CORPUS_PATH,
     LOCAL_CHROMA_CORPUS_PATH,
@@ -38,13 +46,14 @@ from src.utils.chroma_sync import (
     clean_corrupted_chroma,
     is_colab_environment,
 )
+from src.data.cap_checkpoint import atomic_replace, atomic_write_json
+from src.data.case_catalog import CaseCatalog
 from src.data.cap_ingest import (
-    build_cap_corpus,
-    build_cap_corpus_in_portions,
-    extract_known_cases_from_chunks,
-    get_downloaded_volumes,
+    corpus_fingerprint,
+    load_cap_chunks,
     parse_volume_selection,
     write_cap_manifest,
+    write_corpus_json,
 )
 try:
     from src.data.cap_ingest import extract_doc_volume
@@ -127,18 +136,17 @@ def format_seconds(secs: float) -> str:
     return f"{s}s"
 
 
-def save_checkpoint(last_index: int, total_chunks: int, collection_count: int, checkpoint_path: str = INDEXING_CHECKPOINT_PATH):
-    """Write dense vector indexing checkpoint to disk."""
-    os.makedirs(os.path.dirname(checkpoint_path), exist_ok=True)
+def save_checkpoint(last_index: int, total_chunks: int, collection_count: int, checkpoint_path: str = INDEXING_CHECKPOINT_PATH, fingerprint: str = ""):
+    """Write dense vector indexing checkpoint to disk (atomically)."""
     payload = {
         "last_indexed_index": last_index,
         "total_chunks": total_chunks,
         "collection_count": collection_count,
         "percent_complete": round(100.0 * last_index / total_chunks, 2) if total_chunks > 0 else 0.0,
+        "corpus_fingerprint": fingerprint,
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
-    with open(checkpoint_path, "w", encoding="utf-8") as f:
-        json.dump(payload, f, indent=2)
+    atomic_write_json(checkpoint_path, payload, indent=2)
 
 
 def load_checkpoint(checkpoint_path: str = INDEXING_CHECKPOINT_PATH) -> dict:
@@ -152,6 +160,19 @@ def load_checkpoint(checkpoint_path: str = INDEXING_CHECKPOINT_PATH) -> dict:
     return {}
 
 
+def load_build_state(path: str = CAP_BUILD_STATE_PATH) -> dict:
+    """Load the record of which corpus the derived lexical artifacts were built from."""
+    if os.path.exists(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                state = json.load(f)
+            if isinstance(state, dict):
+                return state
+        except Exception:
+            pass
+    return {}
+
+
 def main(
     volumes_mode: str = CAP_VOLUMES_MODE,
     max_workers: int = 10,
@@ -159,102 +180,54 @@ def main(
     overwrite: bool = False,
     portion_size: int = 25,
     custom_batch_size: int = None,
+    allow_incomplete: bool = False,
 ):
+    """Stage 3: index verified chunk caches. max_workers and portion_size are accepted for
+    backward compatibility and ignored: this stage no longer downloads or chunks."""
     print("\n" + "=" * 78)
-    print(f"  BUILDING LEXAGENT v3.0 PRIMARY CAP DATABASE")
-    print(f"  Selection Mode: '{volumes_mode}' (Workers: {max_workers})")
+    print(f"  BUILDING LEXAGENT v3.0 PRIMARY CAP DATABASE (STAGE 3: EMBEDDING / INDEXING)")
+    print(f"  Selection Mode: '{volumes_mode}'")
     print(f"  Checkpoint Resume: {'ACTIVE' if resume and not overwrite else 'DISABLED (Fresh Build)'}")
     print("=" * 78)
 
     volume_list = parse_volume_selection(volumes_mode)
     print(f"  -> Target Volumes ({len(volume_list)} total): {volume_list[:8]}..." if len(volume_list) > 8 else f"  -> Target Volumes: {volume_list}")
 
-    # Check already-downloaded volumes on disk
-    downloaded_set, max_downloaded_vol = get_downloaded_volumes(CAP_RAW_DIR)
-    if downloaded_set:
-        print(f"  [CHECKPOINT] Scanned {CAP_RAW_DIR}: Found {len(downloaded_set)} volumes already downloaded (highest: Vol {max_downloaded_vol}).")
-        missing_vols = [v for v in volume_list if v not in downloaded_set]
-        if missing_vols:
-            print(f"  [CHECKPOINT] Next volume to download: Vol {missing_vols[0]} ({len(missing_vols)} remaining to fetch).")
-        else:
-            print(f"  [CHECKPOINT] All target volumes (up to Vol {max_downloaded_vol}) are already present locally!")
-
-    # 1. Obtain Corpus Chunks & Known Cases (Portion-based or load from existing corpus)
-    chunks = []
-    known_cases = set()
-
-    target_vols = set(str(v).strip() for v in volume_list)
-    is_subset = volumes_mode.lower() not in ("all", "full")
-    subset_corpus_path = os.path.join(os.path.dirname(CORPUS_JSON_PATH), f"cap_corpus_{volumes_mode}.json")
-
-    # 1a. Check if specific subset corpus already exists (e.g. cap_corpus_landmark.json)
-    if is_subset and os.path.exists(subset_corpus_path) and not overwrite:
-        print(f"\n  -> Found existing '{volumes_mode}' corpus at: {subset_corpus_path}")
-        try:
-            with open(subset_corpus_path, "r", encoding="utf-8") as f:
-                raw_list = json.load(f)
-            from src.data.corpus_schema import CorpusDocument
-            chunks = [CorpusDocument.from_dict(d) if isinstance(d, dict) else d for d in raw_list]
-            known_cases = extract_known_cases_from_chunks(chunks)
-            print(f"  -> Successfully loaded {len(chunks):,} chunks for '{volumes_mode}' preset.")
-        except Exception as e:
-            logger.warning("Could not load subset corpus %s: %s", subset_corpus_path, e)
-
-    # 1b. Check if master corpus exists and filter it
-    if not chunks and os.path.exists(CORPUS_JSON_PATH) and not overwrite:
-        print(f"\n  -> Found existing master corpus at: {CORPUS_JSON_PATH}")
-        print("  -> Loading chunked documents directly from disk...")
-        try:
-            with open(CORPUS_JSON_PATH, "r", encoding="utf-8") as f:
-                raw_list = json.load(f)
-            from src.data.corpus_schema import CorpusDocument
-            all_loaded = [CorpusDocument.from_dict(d) if isinstance(d, dict) else d for d in raw_list]
-            del raw_list
-            import gc
-            gc.collect()
-            print(f"  -> Successfully loaded {len(all_loaded):,} corpus chunks from disk.")
-
-            if is_subset:
-                filtered_chunks = [c for c in all_loaded if extract_doc_volume(c) in target_vols]
-                if filtered_chunks:
-                    print(f"  -> Filtered down to {len(filtered_chunks):,} chunks for '{volumes_mode}' preset ({len(target_vols)} target volumes).")
-                    chunks = filtered_chunks
-                    os.makedirs(os.path.dirname(subset_corpus_path), exist_ok=True)
-                    with open(subset_corpus_path, "w", encoding="utf-8") as f:
-                        json.dump([c.to_dict() for c in chunks], f, ensure_ascii=False)
-                else:
-                    print(f"  -> Master corpus did not contain volume tags for '{volumes_mode}'. Building directly from raw volume caches...")
-                    chunks, known_cases = build_cap_corpus_in_portions(
-                        volume_list,
-                        portion_size=portion_size,
-                        max_workers=max_workers,
-                        volume_tag=volumes_mode,
-                    )
-            else:
-                chunks = all_loaded
-
-            known_cases = extract_known_cases_from_chunks(chunks)
-            print(f"  -> Extracted {len(known_cases):,} known cases & citations for '{volumes_mode}'.")
-        except Exception as e:
-            logger.warning("Could not parse existing corpus JSON: %s. Rebuilding in portions...", e)
-            chunks, known_cases = build_cap_corpus_in_portions(
-                volume_list,
-                portion_size=portion_size,
-                max_workers=max_workers,
-                volume_tag=volumes_mode,
-            )
-    elif not chunks:
-        chunks, known_cases = build_cap_corpus_in_portions(
-            volume_list,
-            portion_size=portion_size,
-            max_workers=max_workers,
-            volume_tag=volumes_mode,
-        )
+    # 1. Load Corpus Chunks & Known Cases from the verified per-volume chunk caches.
+    # No network and no chunking happens here: a volume that is not ready stops the build.
+    chunks, known_cases, load_report = load_cap_chunks(volume_list, allow_incomplete=allow_incomplete)
 
     if not chunks:
-        raise RuntimeError("No chunks were generated or loaded from CAP volumes.")
+        raise RuntimeError("No chunks were loaded. Run the download stage (--download-cap) and the chunk stage (--chunk-cap) first.")
 
-    print(f"\n  -> Total Retrieval Chunks: {len(chunks):,}")
+    print(f"\n  -> Total Retrieval Chunks: {len(chunks):,} from {len(load_report['loaded'])} volumes")
+
+    # The corpus JSON, known-cases catalog and BM25 index are derived from one specific corpus.
+    # They are reused only when they were built from exactly this corpus, never just because the files exist.
+    fingerprint = corpus_fingerprint(chunks)
+    build_state = load_build_state()
+    if overwrite or build_state.get("corpus_fingerprint") != fingerprint:
+        build_state = {"corpus_fingerprint": fingerprint, "volumes": volumes_mode, "chunk_count": len(chunks), "artifacts": {}}
+    artifacts = build_state.setdefault("artifacts", {})
+    manifest_extra = {
+        "corpus_fingerprint": fingerprint,
+        "volumes_indexed": len(load_report["loaded"]),
+        "volumes_unavailable": load_report["unavailable"],
+        "volumes_missing": sorted(load_report["missing"]),
+        # Volumes that did not come from CAP (see src/data/us_reports_pdf.py).
+        "volumes_from_official_us_reports_pdf": sorted(
+            {c.volume for c in chunks if (c.metadata or {}).get("authority_identity") == "US_REPORTS_OFFICIAL_PDF"}, key=int
+        ),
+    }
+
+    if artifacts.get("corpus_json") and os.path.exists(CORPUS_JSON_PATH):
+        print(f"  [OK] Corpus JSON already matches this corpus: {CORPUS_JSON_PATH}. Preserved.")
+    else:
+        print(f"  -> Writing corpus JSON ({len(chunks):,} chunks)...")
+        write_corpus_json(chunks, CORPUS_JSON_PATH)
+        artifacts["corpus_json"] = True
+        atomic_write_json(CAP_BUILD_STATE_PATH, build_state, indent=2)
+        print(f"  [OK] Corpus JSON saved: {CORPUS_JSON_PATH}")
 
     # 2. IMMEDIATE PERSISTENCE: Save Known Cases Catalog & BM25 Lexical Index FIRST
     # (These take < 1 minute to build and ensure lexical components are saved even if dense indexing is interrupted)
@@ -263,24 +236,42 @@ def main(
     print("-" * 78)
 
     # 2a. Known Cases Catalog
-    if os.path.exists(KNOWN_CASES_PATH) and not overwrite:
-        print(f"  [OK] Known cases catalog already exists on disk: {KNOWN_CASES_PATH}. Preserved.")
+    if artifacts.get("known_cases") and os.path.exists(KNOWN_CASES_PATH):
+        print(f"  [OK] Known cases catalog already matches this corpus: {KNOWN_CASES_PATH}. Preserved.")
     elif known_cases:
         os.makedirs(os.path.dirname(KNOWN_CASES_PATH), exist_ok=True)
-        with open(KNOWN_CASES_PATH, "wb") as handle:
+        with open(KNOWN_CASES_PATH + ".tmp", "wb") as handle:
             pickle.dump(known_cases, handle)
+        atomic_replace(KNOWN_CASES_PATH + ".tmp", KNOWN_CASES_PATH)
+        artifacts["known_cases"] = True
+        atomic_write_json(CAP_BUILD_STATE_PATH, build_state, indent=2)
         print(f"  [OK] Known cases catalog saved immediately: {KNOWN_CASES_PATH} ({len(known_cases):,} entries)")
         del known_cases
         import gc
         gc.collect()
 
+    # 2a'. Case catalog: every report with its cite, year and length, so that the CCE can check a
+    #      citation against the actual opinion instead of an order entry that shares its name
+    if artifacts.get("case_catalog") and os.path.exists(CASE_CATALOG_PATH):
+        print(f"  [OK] Case catalog already matches this corpus: {CASE_CATALOG_PATH}. Preserved.")
+    else:
+        catalog = CaseCatalog.from_chunks(chunks)
+        catalog.save(CASE_CATALOG_PATH)
+        artifacts["case_catalog"] = True
+        atomic_write_json(CAP_BUILD_STATE_PATH, build_state, indent=2)
+        print(f"  [OK] Case catalog saved: {CASE_CATALOG_PATH} ({len(catalog):,} reports)")
+        del catalog
+
     # 2b. BM25 Lexical Index
-    if os.path.exists(BM25_INDEX_PATH) and not overwrite:
-        print(f"  [OK] BM25 index already exists on disk: {BM25_INDEX_PATH}. Preserved.")
+    if artifacts.get("bm25") and os.path.exists(BM25_INDEX_PATH):
+        print(f"  [OK] BM25 index already matches this corpus: {BM25_INDEX_PATH}. Preserved.")
     else:
         print(f"  -> Building and serializing memory-efficient BM25 index over {len(chunks):,} chunks...")
         bm25 = BM25Retriever(chunks)
-        bm25.save_index(BM25_INDEX_PATH)
+        bm25.save_index(BM25_INDEX_PATH + ".tmp")
+        atomic_replace(BM25_INDEX_PATH + ".tmp", BM25_INDEX_PATH)
+        artifacts["bm25"] = True
+        atomic_write_json(CAP_BUILD_STATE_PATH, build_state, indent=2)
         del bm25
         import gc
         gc.collect()
@@ -343,27 +334,42 @@ def main(
             # If local Chroma collection is empty, restart from 0 to prevent skipping chunks
             if existing_count == 0:
                 start_index = 0
-            # If checkpoint chunk count doesn't match current subset (e.g. switched to landmark)
-            elif ckpt.get("total_chunks") != len(chunks) or start_index > len(chunks):
-                start_index = min(existing_count, len(chunks))
+            # The checkpoint is only a valid resume point for the corpus it was written for.
+            elif ckpt.get("corpus_fingerprint") != fingerprint or ckpt.get("total_chunks") != len(chunks):
+                old_total = ckpt.get("total_chunks")
+                grew = (
+                    isinstance(old_total, int)
+                    and 0 < old_total < len(chunks)
+                    and start_index <= min(old_total, existing_count)
+                    and ckpt.get("corpus_fingerprint") == corpus_fingerprint(chunks[:old_total])
+                )
+                if grew:
+                    # Volumes were added after the previous build: the chunks indexed so far are an
+                    # unchanged prefix of this corpus, so only the rest needs embedding.
+                    print(f"\n  [*] The corpus grew from {old_total:,} to {len(chunks):,} chunks; the earlier chunks are unchanged.")
+                else:
+                    # Checkpoint missing or written for a different corpus: re-run from chunk 0. Upsert
+                    # is idempotent, so nothing is skipped and nothing already stored is deleted.
+                    print(f"\n  [!] The indexing checkpoint does not match this corpus ({existing_count:,} chunks already in ChromaDB).")
+                    print("      Re-running the embedding pass from chunk 0. Existing entries are kept and updated in place.")
+                    start_index = 0
+            elif start_index > len(chunks) or start_index > existing_count:
+                print(f"\n  [!] The indexing checkpoint is ahead of ChromaDB ({existing_count:,} chunks stored). Re-running from chunk 0.")
+                start_index = 0
     except Exception as e:
-        print(f"\n  [!] CAUTION: Corrupted ChromaDB state detected: {e}")
-        print("      Auto-Heal: Purging malformed database and starting fresh on high-speed SSD...")
-        clean_corrupted_chroma(active_chroma_path, INDEXING_CHECKPOINT_PATH)
-        if is_colab_environment():
-            clean_corrupted_chroma(DRIVE_CHROMA_CORPUS_PATH, INDEXING_CHECKPOINT_PATH)
-        os.makedirs(active_chroma_path, exist_ok=True)
-        client = chromadb.PersistentClient(path=active_chroma_path)
-        collection = client.create_collection("cap_authorities", metadata={"hnsw:space": "cosine"})
-        existing_count = 0
-        start_index = 0
+        # Never purge the index on our own: embedding work is destroyed only by an explicit --overwrite.
+        raise RuntimeError(
+            f"ChromaDB at {active_chroma_path} could not be opened: {e}\n"
+            "Nothing was deleted. If the database really is corrupt, rebuild it explicitly with --overwrite "
+            "(raw and chunk caches are not affected)."
+        ) from e
 
     if not overwrite and start_index >= len(chunks):
         print(f"\n  [OK] ChromaDB index already 100% complete: {existing_count:,} / {len(chunks):,} chunks stored.")
         print(f"    Path: {active_chroma_path}")
         if is_colab_environment():
             sync_chroma_to_drive(active_chroma_path, DRIVE_CHROMA_CORPUS_PATH)
-        write_cap_manifest(chunks, volume_tag=volumes_mode)
+        write_cap_manifest(chunks, volume_tag=volumes_mode, extra=manifest_extra)
         print("\n" + "=" * 78)
         print("  LEXAGENT v3.0 CAP DATABASE IS READY AND FULLY VERIFIED!")
         print("=" * 78)
@@ -426,7 +432,7 @@ def main(
             # Periodic checkpoint save & progress reporting
             if done % checkpoint_interval < batch_size or done >= len(chunks):
                 cur_cnt = collection.count()
-                save_checkpoint(done, len(chunks), cur_cnt)
+                save_checkpoint(done, len(chunks), cur_cnt, fingerprint=fingerprint)
 
                 pct = 100.0 * done / len(chunks)
                 elapsed = time.time() - t0
@@ -451,15 +457,18 @@ def main(
         except Exception:
             pass
 
-    save_checkpoint(len(chunks), len(chunks), collection.count())
+    save_checkpoint(len(chunks), len(chunks), collection.count(), fingerprint=fingerprint)
     print(f"\n  [OK] ChromaDB dense vector index complete: {collection.count():,} chunks stored.")
+    if collection.count() != len(chunks):
+        print(f"  [!] The collection holds {collection.count():,} entries but this corpus has {len(chunks):,} chunks.")
+        print("      It contains entries from an earlier, different corpus. Rebuild with --overwrite for a clean index.")
     if is_colab_environment():
         print(f"       Local Fast NVMe: {active_chroma_path}")
         print(f"       Persistent Drive: {DRIVE_CHROMA_CORPUS_PATH}")
     else:
         print(f"       Path: {active_chroma_path}")
 
-    write_cap_manifest(chunks, volume_tag=volumes_mode)
+    write_cap_manifest(chunks, volume_tag=volumes_mode, extra=manifest_extra)
 
     print("\n" + "=" * 78)
     print("  LEXAGENT v3.0 CAP DATABASE SUCCESSFULLY BUILT!")
@@ -470,10 +479,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Build primary CAP ChromaDB, BM25, and known_cases catalog.")
     parser.add_argument("--volumes", default=CAP_VOLUMES_MODE,
                         help="Volume mode ('landmark', 'modern', 'all', range '400-450', or list '410,347')")
-    parser.add_argument("--workers", type=int, default=int(os.environ.get("LEXAGENT_WORKERS", "16")), help="Parallel download worker threads (default: 16)")
+    parser.add_argument("--workers", type=int, default=int(os.environ.get("LEXAGENT_WORKERS", "16")), help="Ignored (this stage does not download); kept for old command lines")
     parser.add_argument("--resume", action="store_true", default=True, help="Auto-resume from last checkpoint (default: True)")
-    parser.add_argument("--overwrite", action="store_true", help="Force wipe and rebuild collection/index from scratch")
-    parser.add_argument("--portion-size", type=int, default=50, help="Portion size in volumes for chunking (default: 50)")
+    parser.add_argument("--overwrite", action="store_true", help="Wipe and rebuild the ChromaDB collection and derived indexes (never raw or chunk caches)")
+    parser.add_argument("--portion-size", type=int, default=50, help="Ignored (this stage does not chunk); kept for old command lines")
+    parser.add_argument("--allow-incomplete", action="store_true", help="Index the volumes that are ready even if some target volumes have no verified chunk cache")
     parser.add_argument("--batch-size", type=int, default=None, help="Batch size for embedding encode/add (default: 256 on GPU)")
     args = parser.parse_args()
 
@@ -484,4 +494,5 @@ if __name__ == "__main__":
         overwrite=args.overwrite,
         portion_size=args.portion_size,
         custom_batch_size=args.batch_size,
+        allow_incomplete=args.allow_incomplete,
     )

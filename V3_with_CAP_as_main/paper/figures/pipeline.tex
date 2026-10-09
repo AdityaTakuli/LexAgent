@@ -1,0 +1,33 @@
+% Fig. 2 - per-volume state machine of the staged ingestion pipeline (column width, drawn at natural size).
+\begin{tikzpicture}[
+    x=1cm, y=1cm,
+    font=\sffamily\scriptsize,
+    >={Stealth[length=1.7mm,width=1.3mm]},
+    st/.style={draw=#1!75!black, fill=#1!18, rounded corners=7pt, align=center, line width=0.6pt,
+               minimum height=7mm, minimum width=18.5mm, inner sep=2pt, font=\sffamily\tiny\bfseries},
+    tr/.style={->, line width=0.7pt, draw=black!70},
+    lbl/.style={font=\sffamily\tiny, text=black!75, align=center, inner sep=1.2pt},
+]
+\node[st=cNeutral] (ns) at (0.00,2.60) {NOT\_STARTED};
+\node[st=cRetr]    (ip) at (2.80,2.60) {IN\_PROGRESS};
+\node[st=cVerify]  (ok) at (6.10,3.65) {COMPLETE};
+\node[st=cDef]     (fl) at (6.10,2.60) {FAILED};
+\node[st=cCtrl]    (na) at (6.10,1.55) {UNAVAILABLE};
+
+\draw[tr] (ns) -- node[lbl, above] {start} (ip);
+\draw[tr] (ip.east) -- ++(0.40,0) |- (ok.west);
+\draw[tr] (ip) -- (fl);
+\draw[tr] (ip.east) -- ++(0.40,0) |- (na.west);
+\node[lbl, anchor=south east] at (5.14,3.66) {artifact verified};
+\node[lbl, anchor=south] at (4.66,2.61) {error};
+\node[lbl, anchor=north east] at (5.14,1.54) {not published};
+% between runs: an invalid artifact sends a COMPLETE volume back; a FAILED volume is retried
+\draw[tr, dashed, rounded corners=4pt] (ok.north) -- ++(0,0.50) -| (ns.north);
+\node[lbl, anchor=south] at (3.05,4.51) {artifact missing or corrupt, or source hash changed};
+\draw[tr, dashed, rounded corners=4pt] (fl.east) -- ++(0.32,0) -- ++(0,-1.82) -| (ip.south);
+\node[lbl, anchor=north] at (5.05,0.76) {next run retries; verified cases are reused};
+
+\draw[draw=cPipe!60, fill=cPipe!7, rounded corners=4pt, line width=0.6pt] (-0.95,-1.72) rectangle (7.55,0.18);
+\node[font=\sffamily\scriptsize, align=left, anchor=west, text width=80mm, inner sep=0pt] at (-0.75,-0.77) {%
+\textbf{Rule applied on every run.} A file that exists is not a success. Each artifact carries a schema version, a status and a content hash, and is read back from disk before its volume is treated as COMPLETE. The ledger records progress and is never the source of truth. A checkpoint is committed after every \ResCorpusCheckpointInterval\ volumes.};
+\end{tikzpicture}

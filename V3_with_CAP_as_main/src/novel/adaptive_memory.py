@@ -2,17 +2,21 @@
 """Adaptive Memory: Cross-session citation risk tracking + verdict caching."""
 
 import os
+import re
 import sys
+import json
 import hashlib
 from datetime import datetime
 import chromadb
 
 from config import (
     CHROMA_MEMORY_PATH,
+    MEMORY_CACHE_MODE,
     MEMORY_CACHE_THRESHOLD,
     MEMORY_HIGH_RISK_CCS_THRESH,
 )
 from src.agents.state import LexAgentState
+from src.data.corpus_schema import CitationRecord
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -23,11 +27,22 @@ def _stable_hash(text: str) -> str:
     return hashlib.sha1(text.strip().lower().encode("utf-8")).hexdigest()[:16]
 
 
+def normalize_question(text: str) -> str:
+    """The form in which two questions count as the same: case, punctuation and spacing ignored."""
+    return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9]+", " ", str(text).lower())).strip()
+
+
+CACHE_MODES = ("exact", "similarity", "off")
+
+
 class AdaptiveMemory:
     """Cross-session citation risk tracking + verdict caching."""
 
-    def __init__(self, chroma_path: str = CHROMA_MEMORY_PATH, namespace: str = "", client=None):
+    def __init__(self, chroma_path: str = CHROMA_MEMORY_PATH, namespace: str = "", client=None, cache_mode: str = None):
         self.namespace = namespace
+        self.cache_mode = cache_mode or MEMORY_CACHE_MODE
+        if self.cache_mode not in CACHE_MODES:
+            raise ValueError(f"cache_mode must be one of {CACHE_MODES}, not {self.cache_mode!r}")
         if client is not None:
             self.client = client
         elif chroma_path == ":memory:":
@@ -52,23 +67,42 @@ class AdaptiveMemory:
             self.risk_collection.count(),
         )
 
-    def check_cache(self, query: str, embedder) -> tuple:
-        q_vec = embedder.encode(query).tolist()
+    def lookup_verdict(self, query: str, embedder) -> dict:
+        """The stored verdict for this question, or None.
+
+        In "exact" mode a verdict is returned only for the same question (normalised). Embedding
+        similarity cannot tell "the same question" from "the same area of law": distinct legal
+        questions lie within the old 0.92 threshold of each other, so "similarity" mode returns
+        answers written for other questions and exists only to reproduce the earlier runs.
+        """
+        if self.cache_mode == "off":
+            return None
         try:
-            results = self.verdict_collection.query(
-                query_embeddings=[q_vec], n_results=1
-            )
+            if self.cache_mode == "exact":
+                wanted = normalize_question(query)
+                got = self.verdict_collection.get(ids=[f"verdict_{_stable_hash(wanted)}"])
+                if got and got.get("ids"):
+                    cached = got["metadatas"][0]
+                    # The id is a hash; compare the questions themselves before trusting it.
+                    if normalize_question(cached.get("query", "")) == wanted:
+                        logger.info("Cache HIT: same question")
+                        return {**cached, "cache_rule": "exact"}
+                return None
+            q_vec = embedder.encode(query).tolist()
+            results = self.verdict_collection.query(query_embeddings=[q_vec], n_results=1)
             if (results.get("distances")
                     and results["distances"][0]
                     and results["distances"][0][0] < (1 - MEMORY_CACHE_THRESHOLD)):
-                cached = results["metadatas"][0][0]
-                answer = cached.get("answer", "")
                 logger.info("Cache HIT: distance=%.4f", results["distances"][0][0])
-                return True, answer
+                return {**results["metadatas"][0][0], "cache_rule": "similarity",
+                        "cache_distance": float(results["distances"][0][0])}
         except Exception as e:
             logger.debug("Cache check failed: %s", e)
+        return None
 
-        return False, ""
+    def check_cache(self, query: str, embedder) -> tuple:
+        cached = self.lookup_verdict(query, embedder)
+        return (True, cached.get("answer", "")) if cached else (False, "")
 
     def get_high_risk_citations(self, query: str, embedder) -> list:
         q_vec = embedder.encode(query).tolist()
@@ -117,7 +151,8 @@ class AdaptiveMemory:
 
     def store_verdict(self, state: LexAgentState, embedder):
         q_vec = embedder.encode(state["query"]).tolist()
-        doc_id = f"verdict_{_stable_hash(state['query'])}"
+        doc_id = f"verdict_{_stable_hash(normalize_question(state['query']))}"
+        citations = [c.to_dict() if hasattr(c, "to_dict") else dict(c) for c in (state.get("judge_verified_citations") or [])]
 
         self.verdict_collection.upsert(
             ids=[doc_id],
@@ -129,6 +164,8 @@ class AdaptiveMemory:
                 "confidence": float(state.get("judge_confidence", 0.0)),
                 "timestamp":  datetime.now().isoformat(),
                 "avg_ccs":    float(state.get("avg_ccs", 0.0)),
+                # A cache hit has to give back what the answer rested on, not only its text.
+                "citations":  json.dumps(citations),
             }],
         )
         logger.info("Verdict cached: id=%s", doc_id)
@@ -193,8 +230,13 @@ def make_memory_nodes(memory: AdaptiveMemory, embedder):
         if hit:
             out["cached_answer"] = cached
             out["final_answer"] = cached
+            verdict = memory.lookup_verdict(state["query"], embedder) or {}
+            out["judge_confidence"] = float(verdict.get("confidence", 0.0) or 0.0)
+            try:
+                out["judge_verified_citations"] = [CitationRecord.from_dict(c) for c in json.loads(verdict.get("citations") or "[]")]
+            except (TypeError, ValueError, KeyError):
+                out["judge_verified_citations"] = []
             logger.info("Memory cache hit — returning cached verdict")
-
         return out
 
     def memory_store_node(state: LexAgentState) -> dict:

@@ -889,7 +889,43 @@ BENCHMARK_100_CASES = BENCHMARK_30_CASES + [
 # Backward-compatible aliases
 BENCHMARK_CASES = BENCHMARK_100_CASES
 
-def get_benchmark_cases(limit: int = 100):
+_SOURCE_TEXT_NOTICE_SHOWN = False
+
+
+def split_benchmark_by_source_text(cases=None):
+    """Split the benchmark into cases the corpus can support and cases it cannot.
+
+    A case is evaluable only when the opinion of its target case is in the corpus. Cases whose
+    source text lies entirely outside the corpus (a volume that could not be obtained, or a case
+    the source omits) are excluded: the system could not possibly ground an answer to them.
+
+    Returns (evaluable, excluded). Without a built database there is no catalog to check
+    against, and every case is returned as evaluable.
+    """
+    from config import CASE_CATALOG_PATH
+    from src.data.case_catalog import CaseCatalog, split_cases_by_source_text
+
+    cases = BENCHMARK_100_CASES if cases is None else cases
+    catalog = CaseCatalog.load(CASE_CATALOG_PATH)
+    if catalog is None:
+        return list(cases), []
+    return split_cases_by_source_text(cases, catalog)
+
+
+def get_benchmark_cases(limit: int = 100, require_source_text: bool = True):
+    """The first `limit` benchmark cases (all of them for limit <= 0 or >= 100).
+
+    By default only cases whose target opinion is in the corpus are returned.
+    """
+    global _SOURCE_TEXT_NOTICE_SHOWN
+    cases = BENCHMARK_100_CASES
+    if require_source_text:
+        cases, excluded = split_benchmark_by_source_text()
+        if excluded and not _SOURCE_TEXT_NOTICE_SHOWN:
+            _SOURCE_TEXT_NOTICE_SHOWN = True
+            print(f"  [TEST SET] {len(excluded)} benchmark case(s) are left out because the corpus has no source text for them:")
+            for case in excluded:
+                print(f"    - #{case['id']} {case['target_case']}: {case['excluded_reason']}")
     if limit is None or limit <= 0 or limit >= len(BENCHMARK_100_CASES):
-        return BENCHMARK_100_CASES
-    return BENCHMARK_100_CASES[:limit]
+        return cases
+    return cases[:limit]

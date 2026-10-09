@@ -1,0 +1,916 @@
+{
+ "query": "May law enforcement search the digital contents of a cell phone seized from an arrestee without a warrant?",
+ "recorded_at": "2026-10-06T08:38:47.078528+00:00",
+ "events": [
+  {
+   "type": "stage",
+   "stage": "loading",
+   "message": "Loading the corpus and the models. The first question takes about two minutes.",
+   "t": 0.0
+  },
+  {
+   "type": "stage",
+   "stage": "memory_check",
+   "round": 1,
+   "t": 51.45
+  },
+  {
+   "type": "memory",
+   "hit": false,
+   "t": 51.63
+  },
+  {
+   "type": "stage",
+   "stage": "retrieve",
+   "round": 1,
+   "t": 51.63
+  },
+  {
+   "type": "retrieval",
+   "round": 1,
+   "passages": [
+    {
+     "doc_id": "CAP::605978::f369566cdfffe82f0941e34b::chunk::2::c3a53961b4629919",
+     "case_name": "Paulino v. United States",
+     "cite": "490 U.S. 1052",
+     "year": 1989,
+     "court": "Supreme Court of the United States",
+     "text": "right to challenge the search of an item belonging to him that was found within the car. Nor is the sweep of the ruling below limited by observing that petitioner could have preserved his privacy interest in the packet of bills if he had kept it on his person. Such a view suggests that the officers could not have taken petitioner’s wallet from his person and examined its contents but could have searched his briefcase if he had had one on the seat beside him. It also suggests that the police, without a warrant or probable cause, could search and seize a person’s briefcase checked in a public checkroom, or his luggage in a hotel lobby, or his personal effects in a public place. In none of thes",
+     "score": 0.01639344262295082
+    },
+    {
+     "doc_id": "CAP::usr-573-373::4637c76e7e976035ad16944f::chunk::3::56a01f9766a430d1",
+     "case_name": "Riley v. California",
+     "cite": "573 U.S. 373",
+     "year": 2014,
+     "court": "Supreme Court of the United States",
+     "text": "can store millions of pages of text, thousands of pictures, or hundreds of videos. This has several interrelated privacy consequences. First, a cell phone collects in one place many distinct types of information that reveal much more in combination than any isolated record. Second, the phone's capacity allows even just one type of information to convey far more than previously possible. Third, data on the phone can date back for years. In addition, an element of pervasiveness characterizes cell phones but not physical records. A decade ago officers might have occasionally stumbled across a highly personal item such as a diary, but today many of the more than 90% of American adults who own ce",
+     "score": 0.01639344262295082
+    },
+    {
+     "doc_id": "CAP::12697054::02e7e21ca9313ce7d6866a68::chunk::10::b4dc053d7034db76",
+     "case_name": "Maryland v. King",
+     "cite": "569 U.S. 435",
+     "year": 2013,
+     "court": "Supreme Court of the United States",
+     "text": "criminals. Hours after the Oklahoma City bombing, Timothy McVeigh was stopped by a state trooper who noticed he was driving without a license plate. Police stopped serial killer Joel Rifkin for the same reason. One of the terrorists involved in the September 11 attacks was stopped and ticketed for speeding just two days before hijacking Flight 93.\" Id., at ----, 132 S.Ct., at 1520 (citations omitted). Police already seek this crucial identifying information. They use routine and accepted means as varied as comparing the suspect's booking photograph to sketch artists' depictions of persons of interest, showing his mugshot to potential witnesses, and of course making a computerized comparison ",
+     "score": 0.016129032258064516
+    },
+    {
+     "doc_id": "CAP::usr-573-373::4637c76e7e976035ad16944f::chunk::1::1dea8dcd80bd4865",
+     "case_name": "Riley v. California",
+     "cite": "573 U.S. 373",
+     "year": 2014,
+     "court": "Supreme Court of the United States",
+     "text": "United States v. Wurie, on certiorari to the United States Court of Appeals for the First Circuit. issue here applies when a warrantless search is conducted incident to a lawful arrest. Three related precedents govern the extent to which officers may search property found on or near an arrestee. Chimel v. California, 395 U. S. 752, requires that a search incident to arrest be limited to the area within the arrestee's immediate control, where it is justified by the interests in officer safety and in preventing evidence destruction. In United States v. Robinson, 414 U. S. 218, the Court applied the Chimel analysis to a search of a cigarette pack found on the arrestee's person. It held that the",
+     "score": 0.016129032258064516
+    },
+    {
+     "doc_id": "CAP::usr-573-373::4637c76e7e976035ad16944f::chunk::16::df062a6fcc283224",
+     "case_name": "Riley v. California",
+     "cite": "573 U.S. 373",
+     "year": 2014,
+     "court": "Supreme Court of the United States",
+     "text": "only a couple of anecdotal examples of remote wiping triggered by an arrest. See Brief for Association of State Criminal Investigative Agencies et al. as Amici Curiae in No. 13–132, pp. 9–10; see also Tr. of Oral Arg. in No. 13–132, p. 48. Similarly, the opportunities for officers to search a password-protected phone before data becomes encrypted are quite limited. Law enforcement officers are very unlikely to come upon such a phone in an unlocked state because most phones lock at the touch of a button or, as a default, after some very short period of inactivity. See, e. g., iPhone User Guide for iOS 7.1 Software 10 (2014) (default lock after about one minute). This may explain why the encry",
+     "score": 0.015873015873015872
+    },
+    {
+     "doc_id": "CAP::usr-573-373::4637c76e7e976035ad16944f::chunk::0::05fcd9b6677fa8fc",
+     "case_name": "Riley v. California",
+     "cite": "573 U.S. 373",
+     "year": 2014,
+     "court": "Supreme Court of the United States",
+     "text": "RILEY v. CALIFORNIA certiorari to the court of appeal of california, fourth appellate district, division one No. 13–132. Argued April 29, 2014—Decided June 25, 2014* In No. 13–132, petitioner Riley was stopped for a traffic violation, which eventually led to his arrest on weapons charges. An officer searching Riley incident to the arrest seized a cell phone from Riley's pants pocket. The officer accessed information on the phone and noticed the repeated use of a term associated with a street gang. At the police station two hours later, a detective specializing in gangs further examined the phone's digital contents. Based in part on photographs and videos that the detective found, the State c",
+     "score": 0.015873015873015872
+    },
+    {
+     "doc_id": "CAP::6198038::c967930d76920e55f7e7ff26::chunk::22::8026909c901f208b",
+     "case_name": "New York v. Class",
+     "cite": "475 U.S. 106",
+     "year": 1986,
+     "court": "Supreme Court of the United States",
+     "text": "refusal would permit a search of the glove compartment. Even if it did, it would be different if there was no refusal at all, but just an entry to find a registration certificate. If that is the case, this one is no different in kind: there was no refusal and nothing but a nonconsensual entry to search without probable cause and without emergent circumstances. It makes no difference that the law requires the VIN to be visible from outside the car. Otherwise, a requirement that the VIN be carried in a prominent location in the trunk of the car would justify searches of that area whenever there was a stop for a traffic violation. I thus do not join the Court’s opinion, which in effect holds th",
+     "score": 0.015625
+    },
+    {
+     "doc_id": "CAP::usr-573-373::4637c76e7e976035ad16944f::chunk::15::6ccbd7368d42f3f3",
+     "case_name": "Riley v. California",
+     "cite": "573 U.S. 373",
+     "year": 2014,
+     "court": "Supreme Court of the United States",
+     "text": "Both Riley and Wurie concede that officers could have seized and secured their cell phones to prevent destruction of evidence while seeking a warrant. See Brief for Petitioner in No. 13–132, p. 20; Brief for Respondent in No. 13– 212, p. 41. That is a sensible concession. See Illinois v. McArthur, 531 U. S. 326, 331–333 (2001); Chadwick, supra, at 13, and n. 8. And once law enforcement officers have secured a cell phone, there is no longer any risk that the arrestee himself will be able to delete incriminating data from the phone. The United States and California argue that information on a cell phone may nevertheless be vulnerable to two types of evidence destruction unique to digital data—",
+     "score": 0.015625
+    }
+   ],
+   "t": 54.8
+  },
+  {
+   "type": "stage",
+   "stage": "prosecutor",
+   "round": 1,
+   "t": 54.8
+  },
+  {
+   "type": "prosecutor",
+   "round": 1,
+   "argument": "The provided context suggests that law enforcement cannot search the digital contents of a cell phone seized from an arrestee without a warrant, as per Riley v. California (573 U.S. 373) [CAP]. The case establishes that a search incident to an arrest is limited to the area within the arrestee's immediate control and requires a warrant for digital content. The court did not find any exception for cell phones in Chimel v. California (395 U. S. 752), which governs the extent to which officers may search property found on or near an arrestee.",
+   "citations": [
+    {
+     "case_name": "Riley v. California",
+     "court": "United States Supreme Court",
+     "year": 2014,
+     "holding": "A search incident to an arrest requires a warrant for digital content found on a cell phone.",
+     "self_confidence": 0.95,
+     "agent_source": "prosecutor",
+     "reporter_cite": ""
+    },
+    {
+     "case_name": "Chimel v. California",
+     "court": "United States Supreme Court",
+     "year": 1969,
+     "holding": "A search incident to an arrest is limited to the area within the arrestee's immediate control.",
+     "self_confidence": 0.9,
+     "agent_source": "prosecutor",
+     "reporter_cite": ""
+    }
+   ],
+   "t": 66.27
+  },
+  {
+   "type": "stage",
+   "stage": "defense",
+   "round": 1,
+   "t": 66.27
+  },
+  {
+   "type": "defense",
+   "round": 1,
+   "argument": "The Prosecutor's argument is overly narrow and does not consider the potential for digital-specific analogue tests or exigent circumstances that may justify a warrantless search.",
+   "citations": [
+    {
+     "case_name": "Riley v. California",
+     "court": "Supreme Court of the United States",
+     "year": 2014,
+     "holding": "The Court suggests that an analogue test could be applied to digital items, even though people would be unlikely to carry such a variety of information in physical form.",
+     "self_confidence": 0.85,
+     "agent_source": "defense",
+     "reporter_cite": ""
+    },
+    {
+     "case_name": "Chambers v. Maroney",
+     "court": "Supreme Court of the United States",
+     "year": 1961,
+     "holding": "The Court approves the searches without even an inquiry into the officers’ ability promptly to take their case before a magistrate in exigent circumstances.",
+     "self_confidence": 0.8,
+     "agent_source": "defense",
+     "reporter_cite": ""
+    }
+   ],
+   "challenges": [
+    "The Prosecutor's argument overlooks the potential for a digital-specific analogue test, as suggested in Riley v. California (2014). This test could allow law enforcement to search a range of items contained on a phone, even though people would be unlikely to carry such a variety of information in physical form.",
+    "The Prosecutor's argument does not account for exceptions to the warrant requirement in exigent circumstances, as established in Chambers v. Maroney (1961). For example, if a single police officer must take arrested suspects to the station and has no way of immobilizing the car for the time required to obtain a warrant, a search without a warrant may be permissible."
+   ],
+   "concede": false,
+   "challenge_strength": 0.75,
+   "evidence_overlap_ratio": 0.0,
+   "counter_passages": [
+    {
+     "doc_id": "CAP::usr-573-373::4637c76e7e976035ad16944f::chunk::26::401ac4ed3cbe56ae",
+     "case_name": "Riley v. California",
+     "cite": "573 U.S. 373",
+     "year": 2014,
+     "court": "Supreme Court of the United States",
+     "text": "statement from the last five years. And to make matters worse, such an analogue test would allow law enforcement to search a range of items contained on a phone, even though people would be unlikely to carry such a variety of information in physical form. In Riley's case, for example, it is implausible that he would have strolled around with video tapes, photo albums, and an address book all crammed into his pockets. But because each of those items has a predigital analogue, police under California's proposal would be able to search a phone for all of those items—a significant diminution of privacy. In addition, an analogue test would launch courts on a difficult line-drawing expedition to d",
+     "score": 0.01639344262295082
+    },
+    {
+     "doc_id": "CAP::6181032::23bc0a9089d67dba557be24f::chunk::22::dd74f9c188dc2b71",
+     "case_name": "Doyle v. Ohio",
+     "cite": "426 U.S. 610",
+     "year": 1976,
+     "court": "Supreme Court of the United States",
+     "text": "of the car he was driving at the time of the arrest. Petitioner Wood appears to raise the similar claim that testimony of other witnesses that he failed to consent to a search of the car was erroneously admitted at his trial. The parties have not argued these issues separately from the questions whether prior silence in various circumstances may be admitted to impeach a defendant or a defense witness. It is apparent, however, that these questions implicate Fourth Amendment issues that merit independent examination. Accordingly, like the Court, I do not address them.",
+     "score": 0.016129032258064516
+    },
+    {
+     "doc_id": "CAP::6168334::dc90f5a9b5075209007a3a7e::chunk::19::2524f71215a5ba35",
+     "case_name": "Chambers v. Maroney",
+     "cite": "399 U.S. 42",
+     "year": 1970,
+     "court": "Supreme Court of the United States",
+     "text": "search of the car — this one successful. At all times the car and its contents were secure against removal or destruction. Nevertheless, the Court approves the searches without even an inquiry into the officers’ ability promptly to take their case before a magistrate. Circumstances might arise in which it would be impracticable to immobilize the ear for the time required to obtain a warrant — for example, where a single police officer must take arrested suspects to the station, and has no way of protecting the suspects’ car during his absence. In such situations it might be wholly reasonable to perform an on-the-spot search based on probable cause. However, where nothing in the situation mak",
+     "score": 0.015873015873015872
+    },
+    {
+     "doc_id": "CAP::641217::96555ff31f7af961aeeb9505::chunk::0::c8183692cca63cd6",
+     "case_name": "Chrismond v. Chrismond",
+     "cite": "342 U.S. 878",
+     "year": 1951,
+     "court": "Supreme Court of the United States",
+     "text": "No. 354. Chrismond v. Chrismond. Ross R, Barnett for William Harold Cox for respondent. Supreme Court of Mississippi. Certiorari denied. petitioner.",
+     "score": 0.01639344262295082
+    }
+   ],
+   "t": 83.36
+  },
+  {
+   "type": "stage",
+   "stage": "cce",
+   "round": 1,
+   "t": 83.36
+  },
+  {
+   "type": "cce",
+   "round": 1,
+   "avg_ccs": 0.7241,
+   "checks": [
+    {
+     "key": "prosecutor::0::Riley v. California",
+     "agent": "prosecutor",
+     "case_name": "Riley v. California",
+     "reporter_cite": "",
+     "holding": "A search incident to an arrest requires a warrant for digital content found on a cell phone.",
+     "tier": "SUPPORTED",
+     "ccs": 0.8031,
+     "existence": 1.0,
+     "support": 0.803,
+     "evidence": "unbridled discretion to rummage at will among a person's private effects.” 556 U. S., at 345. The United States also proposes a rule that would restrict the scope of a cell phone search to those areas",
+     "evidence_source": "Riley v. California, 573 U.S. 373",
+     "cite_check": "NOT_GIVEN",
+     "best_match": "Riley v. California"
+    },
+    {
+     "key": "prosecutor::1::Chimel v. California",
+     "agent": "prosecutor",
+     "case_name": "Chimel v. California",
+     "reporter_cite": "",
+     "holding": "A search incident to an arrest is limited to the area within the arrestee's immediate control.",
+     "tier": "SUPPORTED",
+     "ccs": 0.9334,
+     "existence": 1.0,
+     "support": 0.933,
+     "evidence": "342 U. S. 48, 51. Only last Term in Terry v. Ohio, 392 U. S. 1, we emphasized that “the police must, whenever practicable, obtain advance judicial approval of searches and seizures through the warrant",
+     "evidence_source": "Chimel v. California, 395 U.S. 752",
+     "cite_check": "NOT_GIVEN",
+     "best_match": "Chimel v. California"
+    },
+    {
+     "key": "defense::2::Riley v. California",
+     "agent": "defense",
+     "case_name": "Riley v. California",
+     "reporter_cite": "",
+     "holding": "The Court suggests that an analogue test could be applied to digital items, even though people would be unlikely to carry such a variety of information in physical form.",
+     "tier": "UNCERTAIN",
+     "ccs": 0.6309,
+     "existence": 1.0,
+     "support": 0.631,
+     "evidence": "can store millions of pages of text, thousands of pictures, or hundreds of videos. This has several interrelated privacy consequences. First, a cell phone collects in one place many distinct types of ",
+     "evidence_source": "Riley v. California, 573 U.S. 373",
+     "cite_check": "NOT_GIVEN",
+     "best_match": "Riley v. California"
+    },
+    {
+     "key": "defense::3::Chambers v. Maroney",
+     "agent": "defense",
+     "case_name": "Chambers v. Maroney",
+     "reporter_cite": "",
+     "holding": "The Court approves the searches without even an inquiry into the officers’ ability promptly to take their case before a magistrate in exigent circumstances.",
+     "tier": "UNCERTAIN",
+     "ccs": 0.5289,
+     "existence": 1.0,
+     "support": 0.529,
+     "evidence": "search of the car — this one successful. At all times the car and its contents were secure against removal or destruction. Nevertheless, the Court approves the searches without even an inquiry into th",
+     "evidence_source": "Chambers v. Maroney, 399 U.S. 42",
+     "cite_check": "NOT_GIVEN",
+     "best_match": "Chambers v. Maroney"
+    }
+   ],
+   "t": 86.29
+  },
+  {
+   "type": "stage",
+   "stage": "reflection",
+   "round": 1,
+   "t": 86.29
+  },
+  {
+   "type": "reflection",
+   "round": 1,
+   "gaps": [
+    "The Defense argument does not provide specific examples or case law for digital-specific analogue tests or exigent circumstances that may justify a warrantless search."
+   ],
+   "queries": [
+    "Case law examples for digital-specific analogue tests or exigent circumstances that may justify a warrantless search of a cell phone."
+   ],
+   "score": 0.8,
+   "t": 90.99
+  },
+  {
+   "type": "stage",
+   "stage": "ddc",
+   "round": 1,
+   "t": 90.99
+  },
+  {
+   "type": "ddc",
+   "round": 1,
+   "decision": "CONTINUE",
+   "reason": "Defense challenge_strength=0.75 with 1 gaps. Additional evidence needed.",
+   "t": 90.99
+  },
+  {
+   "type": "stage",
+   "stage": "retrieve",
+   "round": 2,
+   "t": 90.99
+  },
+  {
+   "type": "retrieval",
+   "round": 2,
+   "passages": [
+    {
+     "doc_id": "CAP::usr-573-373::4637c76e7e976035ad16944f::chunk::3::56a01f9766a430d1",
+     "case_name": "Riley v. California",
+     "cite": "573 U.S. 373",
+     "year": 2014,
+     "court": "Supreme Court of the United States",
+     "text": "can store millions of pages of text, thousands of pictures, or hundreds of videos. This has several interrelated privacy consequences. First, a cell phone collects in one place many distinct types of information that reveal much more in combination than any isolated record. Second, the phone's capacity allows even just one type of information to convey far more than previously possible. Third, data on the phone can date back for years. In addition, an element of pervasiveness characterizes cell phones but not physical records. A decade ago officers might have occasionally stumbled across a highly personal item such as a diary, but today many of the more than 90% of American adults who own ce",
+     "score": 0.032266458495966696
+    },
+    {
+     "doc_id": "CAP::usr-573-373::4637c76e7e976035ad16944f::chunk::26::401ac4ed3cbe56ae",
+     "case_name": "Riley v. California",
+     "cite": "573 U.S. 373",
+     "year": 2014,
+     "court": "Supreme Court of the United States",
+     "text": "statement from the last five years. And to make matters worse, such an analogue test would allow law enforcement to search a range of items contained on a phone, even though people would be unlikely to carry such a variety of information in physical form. In Riley's case, for example, it is implausible that he would have strolled around with video tapes, photo albums, and an address book all crammed into his pockets. But because each of those items has a predigital analogue, police under California's proposal would be able to search a phone for all of those items—a significant diminution of privacy. In addition, an analogue test would launch courts on a difficult line-drawing expedition to d",
+     "score": 0.01639344262295082
+    },
+    {
+     "doc_id": "CAP::usr-573-373::4637c76e7e976035ad16944f::chunk::16::df062a6fcc283224",
+     "case_name": "Riley v. California",
+     "cite": "573 U.S. 373",
+     "year": 2014,
+     "court": "Supreme Court of the United States",
+     "text": "only a couple of anecdotal examples of remote wiping triggered by an arrest. See Brief for Association of State Criminal Investigative Agencies et al. as Amici Curiae in No. 13–132, pp. 9–10; see also Tr. of Oral Arg. in No. 13–132, p. 48. Similarly, the opportunities for officers to search a password-protected phone before data becomes encrypted are quite limited. Law enforcement officers are very unlikely to come upon such a phone in an unlocked state because most phones lock at the touch of a button or, as a default, after some very short period of inactivity. See, e. g., iPhone User Guide for iOS 7.1 Software 10 (2014) (default lock after about one minute). This may explain why the encry",
+     "score": 0.016129032258064516
+    },
+    {
+     "doc_id": "CAP::usr-573-373::4637c76e7e976035ad16944f::chunk::27::336010972fe6a1f3",
+     "case_name": "Riley v. California",
+     "cite": "573 U.S. 373",
+     "year": 2014,
+     "court": "Supreme Court of the United States",
+     "text": "concurring in part and dissenting in part) (describing jurisdiction where “police officers can e-mail warrant requests to judges' iPads [and] judges have signed such warrants and e-mailed them back to officers in less than 15 minutes”). Moreover, even though the search incident to arrest exception does not apply to cell phones, other case-specific exceptions may still justify a warrantless search of a particular phone. “One well-recognized exception applies when ` “the exigencies of the situation” make the needs of law enforcement so compelling that [a] warrantless search is objectively reasonable under the Fourth Amendment.' ” Kentucky v. King, 563 U. S., at 460 (quoting Mincey v. Arizona, ",
+     "score": 0.016129032258064516
+    },
+    {
+     "doc_id": "CAP::12697054::02e7e21ca9313ce7d6866a68::chunk::10::b4dc053d7034db76",
+     "case_name": "Maryland v. King",
+     "cite": "569 U.S. 435",
+     "year": 2013,
+     "court": "Supreme Court of the United States",
+     "text": "criminals. Hours after the Oklahoma City bombing, Timothy McVeigh was stopped by a state trooper who noticed he was driving without a license plate. Police stopped serial killer Joel Rifkin for the same reason. One of the terrorists involved in the September 11 attacks was stopped and ticketed for speeding just two days before hijacking Flight 93.\" Id., at ----, 132 S.Ct., at 1520 (citations omitted). Police already seek this crucial identifying information. They use routine and accepted means as varied as comparing the suspect's booking photograph to sketch artists' depictions of persons of interest, showing his mugshot to potential witnesses, and of course making a computerized comparison ",
+     "score": 0.015873015873015872
+    },
+    {
+     "doc_id": "CAP::usr-573-373::4637c76e7e976035ad16944f::chunk::2::465fb8ecf2800c05",
+     "case_name": "Riley v. California",
+     "cite": "573 U.S. 373",
+     "year": 2014,
+     "court": "Supreme Court of the United States",
+     "text": "an arresting officer or to effectuate the arrestee's escape. Officers may examine the phone's physical aspects to ensure that it will not be used as a weapon, but the data on the phone can endanger no one. To the extent that a search of cell phone data might warn officers of an impending danger, e. g., that the arrestee's confederates are headed to the scene, such a concern is better addressed through consideration of case-specific exceptions to the warrant requirement, such as exigent circumstances. See, e. g., Warden, Md. Penitentiary v. Hayden, 387 U. S. 294, 298–299. Pp. 387–388. (ii) The United States and California raise concerns about the destruction of evidence, arguing that, even if",
+     "score": 0.015625
+    },
+    {
+     "doc_id": "CAP::usr-573-373::4637c76e7e976035ad16944f::chunk::0::05fcd9b6677fa8fc",
+     "case_name": "Riley v. California",
+     "cite": "573 U.S. 373",
+     "year": 2014,
+     "court": "Supreme Court of the United States",
+     "text": "RILEY v. CALIFORNIA certiorari to the court of appeal of california, fourth appellate district, division one No. 13–132. Argued April 29, 2014—Decided June 25, 2014* In No. 13–132, petitioner Riley was stopped for a traffic violation, which eventually led to his arrest on weapons charges. An officer searching Riley incident to the arrest seized a cell phone from Riley's pants pocket. The officer accessed information on the phone and noticed the repeated use of a term associated with a street gang. At the police station two hours later, a detective specializing in gangs further examined the phone's digital contents. Based in part on photographs and videos that the detective found, the State c",
+     "score": 0.015625
+    }
+   ],
+   "t": 92.31
+  },
+  {
+   "type": "stage",
+   "stage": "prosecutor",
+   "round": 2,
+   "t": 92.31
+  },
+  {
+   "type": "prosecutor",
+   "round": 2,
+   "argument": "The case Riley v. California (573 U.S. 373) establishes that cell phones collect sensitive information in one place, revealing more in combination than isolated records. This pervasiveness and capacity make a cell phone search more intrusive than a physical search, warranting a warrant for a search of digital contents. Riley also mentions limited opportunities for officers to search a password-protected phone before data becomes encrypted.",
+   "citations": [
+    {
+     "case_name": "Riley v. California",
+     "court": "Supreme Court of the United States",
+     "year": 2014,
+     "holding": "Cell phone searches require a warrant due to their pervasiveness and capacity.",
+     "self_confidence": 0.95,
+     "agent_source": "prosecutor",
+     "reporter_cite": ""
+    }
+   ],
+   "t": 99.19
+  },
+  {
+   "type": "stage",
+   "stage": "defense",
+   "round": 2,
+   "t": 99.19
+  },
+  {
+   "type": "defense",
+   "round": 2,
+   "argument": "The Prosecutor's argument may be overstated due to the potential applicability of the search incident to arrest exception to cell phones, as suggested by Chambers v. Maroney, and the right of an arrestee to challenge the search of their belongings, as established in Paulino v. United States.",
+   "citations": [
+    {
+     "case_name": "Paulino v. United States",
+     "court": "United States Supreme Court",
+     "year": 1989,
+     "holding": "An arrestee has a right to challenge the search of items belonging to them, even if found within a vehicle.",
+     "self_confidence": 0.85,
+     "agent_source": "defense",
+     "reporter_cite": ""
+    },
+    {
+     "case_name": "Chambers v. Maroney",
+     "court": "United States Supreme Court",
+     "year": 1964,
+     "holding": "Searches without an inquiry into the officers' ability to promptly take their case before a magistrate might be approved, suggesting the search incident to arrest exception could apply to cell phones.",
+     "self_confidence": 0.7,
+     "agent_source": "defense",
+     "reporter_cite": ""
+    }
+   ],
+   "challenges": [
+    "The Prosecutor's argument overlooks the holding in Paulino v. United States (490 U.S. 1052) [CAP], where it was established that an arrestee has a right to challenge the search of items belonging to them, even if found within a vehicle. This suggests that the search of a cell phone found on an arrestee could potentially be challenged.",
+    "The Prosecutor's argument assumes that the search incident to arrest exception does not apply to cell phones. However, in Chambers v. Maroney (399 U.S. 42) [CAP], the court approved searches without an inquiry into the officers' ability to promptly take their case before a magistrate, suggesting that this exception might apply to cell phones as well."
+   ],
+   "concede": false,
+   "challenge_strength": 0.75,
+   "evidence_overlap_ratio": 0.0,
+   "counter_passages": [
+    {
+     "doc_id": "CAP::605978::f369566cdfffe82f0941e34b::chunk::2::c3a53961b4629919",
+     "case_name": "Paulino v. United States",
+     "cite": "490 U.S. 1052",
+     "year": 1989,
+     "court": "Supreme Court of the United States",
+     "text": "right to challenge the search of an item belonging to him that was found within the car. Nor is the sweep of the ruling below limited by observing that petitioner could have preserved his privacy interest in the packet of bills if he had kept it on his person. Such a view suggests that the officers could not have taken petitioner’s wallet from his person and examined its contents but could have searched his briefcase if he had had one on the seat beside him. It also suggests that the police, without a warrant or probable cause, could search and seize a person’s briefcase checked in a public checkroom, or his luggage in a hotel lobby, or his personal effects in a public place. In none of thes",
+     "score": 0.01639344262295082
+    },
+    {
+     "doc_id": "CAP::6181032::23bc0a9089d67dba557be24f::chunk::22::dd74f9c188dc2b71",
+     "case_name": "Doyle v. Ohio",
+     "cite": "426 U.S. 610",
+     "year": 1976,
+     "court": "Supreme Court of the United States",
+     "text": "of the car he was driving at the time of the arrest. Petitioner Wood appears to raise the similar claim that testimony of other witnesses that he failed to consent to a search of the car was erroneously admitted at his trial. The parties have not argued these issues separately from the questions whether prior silence in various circumstances may be admitted to impeach a defendant or a defense witness. It is apparent, however, that these questions implicate Fourth Amendment issues that merit independent examination. Accordingly, like the Court, I do not address them.",
+     "score": 0.016129032258064516
+    },
+    {
+     "doc_id": "CAP::usr-573-373::4637c76e7e976035ad16944f::chunk::1::1dea8dcd80bd4865",
+     "case_name": "Riley v. California",
+     "cite": "573 U.S. 373",
+     "year": 2014,
+     "court": "Supreme Court of the United States",
+     "text": "United States v. Wurie, on certiorari to the United States Court of Appeals for the First Circuit. issue here applies when a warrantless search is conducted incident to a lawful arrest. Three related precedents govern the extent to which officers may search property found on or near an arrestee. Chimel v. California, 395 U. S. 752, requires that a search incident to arrest be limited to the area within the arrestee's immediate control, where it is justified by the interests in officer safety and in preventing evidence destruction. In United States v. Robinson, 414 U. S. 218, the Court applied the Chimel analysis to a search of a cigarette pack found on the arrestee's person. It held that the",
+     "score": 0.016129032258064516
+    },
+    {
+     "doc_id": "CAP::6168334::dc90f5a9b5075209007a3a7e::chunk::19::2524f71215a5ba35",
+     "case_name": "Chambers v. Maroney",
+     "cite": "399 U.S. 42",
+     "year": 1970,
+     "court": "Supreme Court of the United States",
+     "text": "search of the car — this one successful. At all times the car and its contents were secure against removal or destruction. Nevertheless, the Court approves the searches without even an inquiry into the officers’ ability promptly to take their case before a magistrate. Circumstances might arise in which it would be impracticable to immobilize the ear for the time required to obtain a warrant — for example, where a single police officer must take arrested suspects to the station, and has no way of protecting the suspects’ car during his absence. In such situations it might be wholly reasonable to perform an on-the-spot search based on probable cause. However, where nothing in the situation mak",
+     "score": 0.015873015873015872
+    }
+   ],
+   "t": 116.7
+  },
+  {
+   "type": "stage",
+   "stage": "cce",
+   "round": 2,
+   "t": 116.7
+  },
+  {
+   "type": "cce",
+   "round": 2,
+   "avg_ccs": 0.3805,
+   "checks": [
+    {
+     "key": "prosecutor::0::Riley v. California",
+     "agent": "prosecutor",
+     "case_name": "Riley v. California",
+     "reporter_cite": "",
+     "holding": "Cell phone searches require a warrant due to their pervasiveness and capacity.",
+     "tier": "MISATTRIBUTED",
+     "ccs": 0.102,
+     "existence": 1.0,
+     "support": 0.102,
+     "evidence": "can store millions of pages of text, thousands of pictures, or hundreds of videos. This has several interrelated privacy consequences. First, a cell phone collects in one place many distinct types of ",
+     "evidence_source": "Riley v. California, 573 U.S. 373",
+     "cite_check": "NOT_GIVEN",
+     "best_match": "Riley v. California"
+    },
+    {
+     "key": "defense::1::Paulino v. United States",
+     "agent": "defense",
+     "case_name": "Paulino v. United States",
+     "reporter_cite": "",
+     "holding": "An arrestee has a right to challenge the search of items belonging to them, even if found within a vehicle.",
+     "tier": "SUPPORTED",
+     "ccs": 0.9843,
+     "existence": 1.0,
+     "support": 0.984,
+     "evidence": "right to challenge the search of an item belonging to him that was found within the car. Nor is the sweep of the ruling below limited by observing that petitioner could have preserved his privacy inte",
+     "evidence_source": "Paulino v. United States, 490 U.S. 1052",
+     "cite_check": "NOT_GIVEN",
+     "best_match": "Paulino v. United States"
+    },
+    {
+     "key": "defense::2::Chambers v. Maroney",
+     "agent": "defense",
+     "case_name": "Chambers v. Maroney",
+     "reporter_cite": "",
+     "holding": "Searches without an inquiry into the officers' ability to promptly take their case before a magistrate might be approved, suggesting the search incident to arrest exception could apply to cell phones.",
+     "tier": "MISATTRIBUTED",
+     "ccs": 0.0553,
+     "existence": 1.0,
+     "support": 0.055,
+     "evidence": "search of the car — this one successful. At all times the car and its contents were secure against removal or destruction. Nevertheless, the Court approves the searches without even an inquiry into th",
+     "evidence_source": "Chambers v. Maroney, 399 U.S. 42",
+     "cite_check": "NOT_GIVEN",
+     "best_match": "Chambers v. Maroney"
+    }
+   ],
+   "t": 118.24
+  },
+  {
+   "type": "stage",
+   "stage": "reflection",
+   "round": 2,
+   "t": 118.24
+  },
+  {
+   "type": "reflection",
+   "round": 2,
+   "gaps": [
+    "The Prosecutor's argument does not address the potential applicability of the search incident to arrest exception to cell phones as suggested by Chambers v. Maroney."
+   ],
+   "queries": [
+    "Find case law that directly addresses the search incident to arrest exception and its applicability to cell phones."
+   ],
+   "score": 0.8,
+   "t": 122.82
+  },
+  {
+   "type": "stage",
+   "stage": "ddc",
+   "round": 2,
+   "t": 122.82
+  },
+  {
+   "type": "ddc",
+   "round": 2,
+   "decision": "CONTINUE",
+   "reason": "Round 2: avg_CCS=0.38, min_CCS=0.06 with 1 unresolved gap(s). Initiating next debate round.",
+   "t": 122.82
+  },
+  {
+   "type": "stage",
+   "stage": "retrieve",
+   "round": 3,
+   "t": 122.82
+  },
+  {
+   "type": "retrieval",
+   "round": 3,
+   "passages": [
+    {
+     "doc_id": "CAP::usr-585-296::13c962c5cb5789c277b0169b::chunk::21::223a25942e2748f3",
+     "case_name": "Carpenter v. United States",
+     "cite": "585 U.S. 296",
+     "year": 2018,
+     "court": "Supreme Court of the United States",
+     "text": "meaning of the Fourth Amendment. In this case petitioner challenges the Government's right to use compulsory process to obtain a now-common kind of business record: cell-site records held by cell phone service providers. The Government acquired the records through an investigative process enacted by Congress. Upon approval by a neutral magistrate, and based on the Government's duty to show reasonable necessity, it authorizes the disclosure of records and information that are under the control and ownership of the cell phone service provider, not its customer. Petitioner acknowledges that the Government may obtain a wide variety of business records using compulsory process, and he does not as",
+     "score": 0.01639344262295082
+    },
+    {
+     "doc_id": "CAP::usr-573-373::4637c76e7e976035ad16944f::chunk::1::1dea8dcd80bd4865",
+     "case_name": "Riley v. California",
+     "cite": "573 U.S. 373",
+     "year": 2014,
+     "court": "Supreme Court of the United States",
+     "text": "United States v. Wurie, on certiorari to the United States Court of Appeals for the First Circuit. issue here applies when a warrantless search is conducted incident to a lawful arrest. Three related precedents govern the extent to which officers may search property found on or near an arrestee. Chimel v. California, 395 U. S. 752, requires that a search incident to arrest be limited to the area within the arrestee's immediate control, where it is justified by the interests in officer safety and in preventing evidence destruction. In United States v. Robinson, 414 U. S. 218, the Court applied the Chimel analysis to a search of a cigarette pack found on the arrestee's person. It held that the",
+     "score": 0.01639344262295082
+    },
+    {
+     "doc_id": "CAP::usr-573-373::4637c76e7e976035ad16944f::chunk::16::df062a6fcc283224",
+     "case_name": "Riley v. California",
+     "cite": "573 U.S. 373",
+     "year": 2014,
+     "court": "Supreme Court of the United States",
+     "text": "only a couple of anecdotal examples of remote wiping triggered by an arrest. See Brief for Association of State Criminal Investigative Agencies et al. as Amici Curiae in No. 13–132, pp. 9–10; see also Tr. of Oral Arg. in No. 13–132, p. 48. Similarly, the opportunities for officers to search a password-protected phone before data becomes encrypted are quite limited. Law enforcement officers are very unlikely to come upon such a phone in an unlocked state because most phones lock at the touch of a button or, as a default, after some very short period of inactivity. See, e. g., iPhone User Guide for iOS 7.1 Software 10 (2014) (default lock after about one minute). This may explain why the encry",
+     "score": 0.016129032258064516
+    },
+    {
+     "doc_id": "CAP::usr-573-373::4637c76e7e976035ad16944f::chunk::12::d90885ad84b4ad6c",
+     "case_name": "Riley v. California",
+     "cite": "573 U.S. 373",
+     "year": 2014,
+     "court": "Supreme Court of the United States",
+     "text": "U. S., at 338. As a result, the Court concluded that Chimel could authorize police to search a vehicle “only when the arrestee is unsecured and within reaching distance of the passenger compartment at the time of the search.” 556 U. S., at 343. Gant added, however, an independent exception for a warrantless search of a vehicle's passenger compartment “when it is `reasonable to believe evidence relevant to the crime of arrest might be found in the vehicle.' ” Ibid. (quoting Thornton v. United States, 541 U. S. 615, 632 (2004) (Scalia, J., concurring in judgment)). That exception stems not from Chimel, the Court explained, but from “circumstances unique to the vehicle context.” 556 U. S., at 3",
+     "score": 0.016129032258064516
+    },
+    {
+     "doc_id": "CAP::usr-573-373::4637c76e7e976035ad16944f::chunk::23::2758c732cf62b43d",
+     "case_name": "Riley v. California",
+     "cite": "573 U.S. 373",
+     "year": 2014,
+     "court": "Supreme Court of the United States",
+     "text": "on the device itself. Cell phone users often may not know whether particular information is stored on the device or in the cloud, and it generally makes little difference. See Brief for Electronic Privacy Information Center in No. 13–132, at 12–14, 20. Moreover, the same type of data may be stored locally on the device for one user and in the cloud for another. The United States concedes that the search incident to arrest exception may not be stretched to cover a search of files accessed remotely—that is, a search of files stored in the cloud. See Brief for United States in No. 13–212, at 43–44. Such a search would be like finding a key in a suspect's pocket and arguing that it allowed law e",
+     "score": 0.015873015873015872
+    },
+    {
+     "doc_id": "CAP::usr-573-373::4637c76e7e976035ad16944f::chunk::0::05fcd9b6677fa8fc",
+     "case_name": "Riley v. California",
+     "cite": "573 U.S. 373",
+     "year": 2014,
+     "court": "Supreme Court of the United States",
+     "text": "RILEY v. CALIFORNIA certiorari to the court of appeal of california, fourth appellate district, division one No. 13–132. Argued April 29, 2014—Decided June 25, 2014* In No. 13–132, petitioner Riley was stopped for a traffic violation, which eventually led to his arrest on weapons charges. An officer searching Riley incident to the arrest seized a cell phone from Riley's pants pocket. The officer accessed information on the phone and noticed the repeated use of a term associated with a street gang. At the police station two hours later, a detective specializing in gangs further examined the phone's digital contents. Based in part on photographs and videos that the detective found, the State c",
+     "score": 0.015873015873015872
+    },
+    {
+     "doc_id": "CAP::605978::f369566cdfffe82f0941e34b::chunk::2::c3a53961b4629919",
+     "case_name": "Paulino v. United States",
+     "cite": "490 U.S. 1052",
+     "year": 1989,
+     "court": "Supreme Court of the United States",
+     "text": "right to challenge the search of an item belonging to him that was found within the car. Nor is the sweep of the ruling below limited by observing that petitioner could have preserved his privacy interest in the packet of bills if he had kept it on his person. Such a view suggests that the officers could not have taken petitioner’s wallet from his person and examined its contents but could have searched his briefcase if he had had one on the seat beside him. It also suggests that the police, without a warrant or probable cause, could search and seize a person’s briefcase checked in a public checkroom, or his luggage in a hotel lobby, or his personal effects in a public place. In none of thes",
+     "score": 0.015625
+    },
+    {
+     "doc_id": "CAP::usr-573-373::4637c76e7e976035ad16944f::chunk::2::465fb8ecf2800c05",
+     "case_name": "Riley v. California",
+     "cite": "573 U.S. 373",
+     "year": 2014,
+     "court": "Supreme Court of the United States",
+     "text": "an arresting officer or to effectuate the arrestee's escape. Officers may examine the phone's physical aspects to ensure that it will not be used as a weapon, but the data on the phone can endanger no one. To the extent that a search of cell phone data might warn officers of an impending danger, e. g., that the arrestee's confederates are headed to the scene, such a concern is better addressed through consideration of case-specific exceptions to the warrant requirement, such as exigent circumstances. See, e. g., Warden, Md. Penitentiary v. Hayden, 387 U. S. 294, 298–299. Pp. 387–388. (ii) The United States and California raise concerns about the destruction of evidence, arguing that, even if",
+     "score": 0.015625
+    }
+   ],
+   "t": 123.99
+  },
+  {
+   "type": "stage",
+   "stage": "prosecutor",
+   "round": 3,
+   "t": 123.99
+  },
+  {
+   "type": "prosecutor",
+   "round": 3,
+   "argument": "The Fourth Amendment, as interpreted in Carpenter v. United States (585 U.S. 296) [CAP], emphasizes the need for a warrant to access business records, including cell-site records. Riley v. California (573 U.S. 373) [CAP] further establishes that a search incident to arrest does not extend to a search of files accessed remotely on a cell phone. Therefore, law enforcement cannot search the digital contents of a cell phone seized from an arrestee without a warrant.",
+   "citations": [
+    {
+     "case_name": "Carpenter v. United States",
+     "court": "Supreme Court of the United States",
+     "year": 2018,
+     "holding": "The Fourth Amendment requires a warrant for the acquisition of cell-site records.",
+     "self_confidence": 0.9,
+     "agent_source": "prosecutor",
+     "reporter_cite": ""
+    },
+    {
+     "case_name": "Riley v. California",
+     "court": "Supreme Court of the United States",
+     "year": 2014,
+     "holding": "A search incident to arrest does not extend to a search of files accessed remotely on a cell phone.",
+     "self_confidence": 0.9,
+     "agent_source": "prosecutor",
+     "reporter_cite": ""
+    }
+   ],
+   "t": 134.49
+  },
+  {
+   "type": "stage",
+   "stage": "defense",
+   "round": 3,
+   "t": 134.49
+  },
+  {
+   "type": "defense",
+   "round": 3,
+   "argument": "The potential for immediate harm from digital evidence and the difficulty in obtaining a warrant in a timely manner could justify a warrantless search of a cell phone under certain circumstances.",
+   "citations": [
+    {
+     "case_name": "Doyle v. Ohio",
+     "court": "Supreme Court of the United States",
+     "year": 1976,
+     "holding": "Statements made prior to arrest may be admitted to impeach a defendant or a defense witness.",
+     "self_confidence": 0.85,
+     "agent_source": "defense",
+     "reporter_cite": ""
+    },
+    {
+     "case_name": "Chambers v. Maroney",
+     "court": "Supreme Court of the United States",
+     "year": 1964,
+     "holding": "Circumstances might arise in which it would be impracticable to obtain a warrant before searching a vehicle or its contents.",
+     "self_confidence": 0.8,
+     "agent_source": "defense",
+     "reporter_cite": ""
+    }
+   ],
+   "challenges": [
+    "The Prosecutor's argument overlooks the exception in Doyle v. Ohio (426 U.S. 610) [2020] for statements made prior to arrest, which could potentially apply to a refusal to consent to a search of a cell phone.",
+    "The Prosecutor's argument does not account for the high-risk nature of digital evidence, as stated in Chambers v. Maroney (399 U.S. 42) [2020], where circumstances might arise in which it would be impracticable to obtain a warrant before searching a cell phone."
+   ],
+   "concede": false,
+   "challenge_strength": 0.75,
+   "evidence_overlap_ratio": 0.0,
+   "counter_passages": [
+    {
+     "doc_id": "CAP::usr-573-373::4637c76e7e976035ad16944f::chunk::26::401ac4ed3cbe56ae",
+     "case_name": "Riley v. California",
+     "cite": "573 U.S. 373",
+     "year": 2014,
+     "court": "Supreme Court of the United States",
+     "text": "statement from the last five years. And to make matters worse, such an analogue test would allow law enforcement to search a range of items contained on a phone, even though people would be unlikely to carry such a variety of information in physical form. In Riley's case, for example, it is implausible that he would have strolled around with video tapes, photo albums, and an address book all crammed into his pockets. But because each of those items has a predigital analogue, police under California's proposal would be able to search a phone for all of those items—a significant diminution of privacy. In addition, an analogue test would launch courts on a difficult line-drawing expedition to d",
+     "score": 0.01639344262295082
+    },
+    {
+     "doc_id": "CAP::6181032::23bc0a9089d67dba557be24f::chunk::22::dd74f9c188dc2b71",
+     "case_name": "Doyle v. Ohio",
+     "cite": "426 U.S. 610",
+     "year": 1976,
+     "court": "Supreme Court of the United States",
+     "text": "of the car he was driving at the time of the arrest. Petitioner Wood appears to raise the similar claim that testimony of other witnesses that he failed to consent to a search of the car was erroneously admitted at his trial. The parties have not argued these issues separately from the questions whether prior silence in various circumstances may be admitted to impeach a defendant or a defense witness. It is apparent, however, that these questions implicate Fourth Amendment issues that merit independent examination. Accordingly, like the Court, I do not address them.",
+     "score": 0.016129032258064516
+    },
+    {
+     "doc_id": "CAP::6168334::dc90f5a9b5075209007a3a7e::chunk::19::2524f71215a5ba35",
+     "case_name": "Chambers v. Maroney",
+     "cite": "399 U.S. 42",
+     "year": 1970,
+     "court": "Supreme Court of the United States",
+     "text": "search of the car — this one successful. At all times the car and its contents were secure against removal or destruction. Nevertheless, the Court approves the searches without even an inquiry into the officers’ ability promptly to take their case before a magistrate. Circumstances might arise in which it would be impracticable to immobilize the ear for the time required to obtain a warrant — for example, where a single police officer must take arrested suspects to the station, and has no way of protecting the suspects’ car during his absence. In such situations it might be wholly reasonable to perform an on-the-spot search based on probable cause. However, where nothing in the situation mak",
+     "score": 0.015873015873015872
+    },
+    {
+     "doc_id": "CAP::6198038::c967930d76920e55f7e7ff26::chunk::22::8026909c901f208b",
+     "case_name": "New York v. Class",
+     "cite": "475 U.S. 106",
+     "year": 1986,
+     "court": "Supreme Court of the United States",
+     "text": "refusal would permit a search of the glove compartment. Even if it did, it would be different if there was no refusal at all, but just an entry to find a registration certificate. If that is the case, this one is no different in kind: there was no refusal and nothing but a nonconsensual entry to search without probable cause and without emergent circumstances. It makes no difference that the law requires the VIN to be visible from outside the car. Otherwise, a requirement that the VIN be carried in a prominent location in the trunk of the car would justify searches of that area whenever there was a stop for a traffic violation. I thus do not join the Court’s opinion, which in effect holds th",
+     "score": 0.015625
+    }
+   ],
+   "t": 150.98
+  },
+  {
+   "type": "stage",
+   "stage": "cce",
+   "round": 3,
+   "t": 150.98
+  },
+  {
+   "type": "cce",
+   "round": 3,
+   "avg_ccs": 0.4616,
+   "checks": [
+    {
+     "key": "prosecutor::0::Carpenter v. United States",
+     "agent": "prosecutor",
+     "case_name": "Carpenter v. United States",
+     "reporter_cite": "",
+     "holding": "The Fourth Amendment requires a warrant for the acquisition of cell-site records.",
+     "tier": "MISATTRIBUTED",
+     "ccs": 0.0252,
+     "existence": 1.0,
+     "support": 0.025,
+     "evidence": "at 36, and the accuracy of CSLI is rapidly approaching GPS- level precision. Pp. 310–313. (2) The Government contends that the third-party doctrine governs this case, because cell-site records, like t",
+     "evidence_source": "Carpenter v. United States, 585 U.S. 296",
+     "cite_check": "NOT_GIVEN",
+     "best_match": "Carpenter v. United States"
+    },
+    {
+     "key": "prosecutor::1::Riley v. California",
+     "agent": "prosecutor",
+     "case_name": "Riley v. California",
+     "reporter_cite": "",
+     "holding": "A search incident to arrest does not extend to a search of files accessed remotely on a cell phone.",
+     "tier": "MISATTRIBUTED",
+     "ccs": 0.014,
+     "existence": 1.0,
+     "support": 0.014,
+     "evidence": "only a couple of anecdotal examples of remote wiping triggered by an arrest. See Brief for Association of State Criminal Investigative Agencies et al. as Amici Curiae in No. 13–132, pp. 9–10; see also",
+     "evidence_source": "Riley v. California, 573 U.S. 373",
+     "cite_check": "NOT_GIVEN",
+     "best_match": "Riley v. California"
+    },
+    {
+     "key": "defense::2::Doyle v. Ohio",
+     "agent": "defense",
+     "case_name": "Doyle v. Ohio",
+     "reporter_cite": "",
+     "holding": "Statements made prior to arrest may be admitted to impeach a defendant or a defense witness.",
+     "tier": "SUPPORTED",
+     "ccs": 0.8156,
+     "existence": 1.0,
+     "support": 0.816,
+     "evidence": "of the car he was driving at the time of the arrest. Petitioner Wood appears to raise the similar claim that testimony of other witnesses that he failed to consent to a search of the car was erroneous",
+     "evidence_source": "Doyle v. Ohio, 426 U.S. 610",
+     "cite_check": "NOT_GIVEN",
+     "best_match": "Doyle v. Ohio"
+    },
+    {
+     "key": "defense::3::Chambers v. Maroney",
+     "agent": "defense",
+     "case_name": "Chambers v. Maroney",
+     "reporter_cite": "",
+     "holding": "Circumstances might arise in which it would be impracticable to obtain a warrant before searching a vehicle or its contents.",
+     "tier": "SUPPORTED",
+     "ccs": 0.9915,
+     "existence": 1.0,
+     "support": 0.992,
+     "evidence": "search of the car — this one successful. At all times the car and its contents were secure against removal or destruction. Nevertheless, the Court approves the searches without even an inquiry into th",
+     "evidence_source": "Chambers v. Maroney, 399 U.S. 42",
+     "cite_check": "NOT_GIVEN",
+     "best_match": "Chambers v. Maroney"
+    }
+   ],
+   "t": 152.93
+  },
+  {
+   "type": "stage",
+   "stage": "reflection",
+   "round": 3,
+   "t": 152.93
+  },
+  {
+   "type": "reflection",
+   "round": 3,
+   "gaps": [
+    "The defense argument does not cite a specific case law that directly addresses the search of digital contents of a cell phone without a warrant in the context of immediate harm from digital evidence and the difficulty in obtaining a warrant in a timely manner."
+   ],
+   "queries": [
+    "Case law: 'Search of digital contents of a cell phone without a warrant in cases of immediate harm from digital evidence and difficulty in obtaining a warrant in a timely manner'"
+   ],
+   "score": 0.6,
+   "t": 159.69
+  },
+  {
+   "type": "stage",
+   "stage": "ddc",
+   "round": 3,
+   "t": 159.69
+  },
+  {
+   "type": "ddc",
+   "round": 3,
+   "decision": "TERMINATE",
+   "reason": "Maximum rounds (3) reached",
+   "t": 159.7
+  },
+  {
+   "type": "stage",
+   "stage": "judge",
+   "round": 3,
+   "t": 159.7
+  },
+  {
+   "type": "judge",
+   "verdict": "The search of digital contents of a cell phone seized from an arrestee without a warrant is unconstitutional.",
+   "confidence": 0.0,
+   "reasoning": "The provided arguments and citations do not provide sufficient evidence to support a ruling that law enforcement can search the digital contents of a cell phone seized from an arrestee without a warrant. The case Riley v. California (573 U.S. 373) establishes that a search incident to an arrest does not extend to a search of files accessed remotely on a cell phone, but the cited version of the case has a low CCS score, indicating potential misattribution. Without a verified case that directly addresses the search of digital contents of a cell phone without a warrant in the context of immediate harm from digital evidence and the difficulty in obtaining a warrant in a timely manner, a clear final ruling cannot be made.",
+   "final_answer": "Riley v. California (573 U.S. 373) establishes that a search incident to an arrest does not extend to a search of files accessed remotely on a cell phone.",
+   "verified": [],
+   "uncertain": [],
+   "rejected": [],
+   "t": 173.48
+  },
+  {
+   "type": "stage",
+   "stage": "memory_store",
+   "round": 3,
+   "t": 173.48
+  },
+  {
+   "type": "done",
+   "rounds": 3,
+   "seconds": 173.6,
+   "t": 173.55
+  }
+ ]
+}

@@ -1,0 +1,39 @@
+Statements the running text makes about the post-audit runs (scores written 2026-10-08 01:19).
+holds    the repaired system rests on the target significantly more often than the first system
+holds    the repaired system leaves significantly fewer answers without an existing authority than the first system
+holds    the repair does not change how often the target is cited somewhere in the debate
+holds    repaired system against the four-passage baseline: target cited by the answer, no significant difference
+holds    the debate cites the target somewhere significantly more often than the four-passage baseline
+holds    the repaired system has significantly lower answer similarity than the four-passage baseline
+holds    the repaired system leaves significantly more answers without authority than the four-passage baseline
+holds    the repaired system rests on the target significantly less often than the eight-passage baseline
+holds    the first system rests on the target significantly less often than the four-passage baseline
+holds    the two baselines do not differ significantly in answers resting on the target
+holds    no ablation variant differs significantly from the full system in target cited by the answer
+holds    the variant without the defense has the highest share of answers resting on the target
+holds    no final answer of a debate of the first queue rests on a citation to a non-existent case
+holds    eight-passage baseline answers cite non-existent cases and four-passage baseline answers do not
+holds    agents cited a non-existent case both in the first debate (checker active) and in the variant without the checker
+holds    seed-to-seed standard deviations are available for the four-passage baseline and the first debate
+holds    no debate was skipped in any post-audit run
+holds    every debate of the repaired system ran the maximum number of rounds
+holds    removing the memory changes no measure significantly
+holds    the variant without the defense does not differ significantly from the full system
+holds    both debate configurations have lower answer similarity than both baselines
+holds    the final system rests on the target significantly less often than the four-passage baseline on the same retrieval
+holds    the final system rests on the target significantly less often than the eight-passage baseline on the same retrieval
+holds    final system against the four-passage baseline: target cited by any agent, no significant difference
+holds    the final system and the repaired system do not differ significantly in answers resting on the target
+holds    final system against the four-passage baseline on the earlier retrieval: no significant difference
+holds    the new retrieval raises the four-passage baseline significantly
+holds    neither repair alone changes answers resting on the target significantly
+holds    the new retrieval alone raises target cited by any agent significantly
+holds    the ledger protocol alone lowers target cited by any agent significantly
+holds    no agent of the final system cited a non-existent case
+holds    eight-passage baseline answers on the new retrieval cite non-existent cases
+holds    debates of the final system end after one round
+holds    the final system has significantly fewer grounded answers and lower citation recall than the four-passage baseline on the same retrieval
+holds    the final system has significantly lower ROUGE-L and BERTScore than the four-passage baseline on the same retrieval
+holds    the final system has significantly higher authority accuracy and more grounded answers than the first debate
+holds    the final system and the repaired system do not differ significantly on the standard measures of authority and grounding
+holds    every lost target of the final system is classified

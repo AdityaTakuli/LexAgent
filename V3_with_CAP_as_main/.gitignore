@@ -36,3 +36,17 @@ cap_known_cases.pkl
 
 # Scratch
 scratch/
+
+# Web UI: keep its source and config, not the toolchain or the build output
+ui/.node/
+node_modules/
+ui/web/dist/
+!ui/web/*.json
+!ui/sample_transcript.json
+
+# Paper: keep the compiled PDF and its figures, not the TeX toolchain or its cache
+paper/.tectonic/
+!paper/*.pdf
+# rendered page images (a visual check, rebuilt by paper/render_pages.py) and the TeX build log
+paper/generated/pages/
+paper/*.log

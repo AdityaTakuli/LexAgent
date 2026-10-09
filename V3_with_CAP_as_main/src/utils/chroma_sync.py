@@ -102,7 +102,8 @@ def prepare_working_chroma(
 ) -> str:
     """Prepare healthy ChromaDB directory.
     - If overwrite: wipes both local and drive directories and checkpoint.
-    - If drive or local ChromaDB is malformed: auto-heals by wiping corrupted files.
+    - If drive or local ChromaDB is malformed: stops with an error. Nothing is deleted unless
+      overwrite was requested explicitly.
     - In Colab: restores healthy drive copy to fast local SSD (/content/cap_chroma_local).
     - Returns the active path to use for ChromaDB client.
     """
@@ -113,20 +114,15 @@ def prepare_working_chroma(
         os.makedirs(local_path, exist_ok=True)
         return local_path
 
-    # 1. Check persistent Google Drive directory health
-    if os.path.exists(drive_path) and os.listdir(drive_path):
-        if not check_sqlite_health(drive_path):
-            print(f"\n  [!] AUTO-HEAL: Malformed ChromaDB detected on Google Drive: {drive_path}")
-            print("      (Cause: Incomplete transaction / FUSE network interruption in previous run)")
-            print("      Auto-wiping corrupted database to prevent 'database disk image is malformed' crash...")
-            clean_corrupted_chroma(drive_path, checkpoint_path)
-            clean_corrupted_chroma(local_path, checkpoint_path)
-
-    # 2. Check local SSD directory health
-    if os.path.exists(local_path) and os.listdir(local_path):
-        if not check_sqlite_health(local_path):
-            print(f"\n  [!] AUTO-HEAL: Malformed ChromaDB detected on local SSD: {local_path}")
-            clean_corrupted_chroma(local_path, checkpoint_path)
+    # 1. Check the persistent and the local directory. A failed health check must never
+    #    silently destroy the index: only an explicit overwrite is allowed to delete it.
+    for label, path in (("persistent storage", drive_path), ("local SSD", local_path)):
+        if os.path.exists(path) and os.listdir(path) and not check_sqlite_health(path):
+            raise RuntimeError(
+                f"Malformed ChromaDB detected on {label}: {path}\n"
+                "Nothing was deleted. To discard this index and rebuild it, run the build again with --overwrite "
+                "(raw and chunk caches are not affected)."
+            )
 
     # 3. If running in Colab and local SSD is empty, restore from Drive if healthy
     if is_colab_environment() and local_path != drive_path:

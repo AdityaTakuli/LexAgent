@@ -242,7 +242,9 @@ def run_benchmark(limit: int = 100, model_tuple=None, embedder=None, memory_name
     # Isolate memory per benchmark run to avoid returning stale cached answers on re-runs
     if memory_namespace is None:
         memory_namespace = f"bench_{int(time.time())}"
-    memory = AdaptiveMemory(namespace=memory_namespace)
+    # The verdict cache is off in evaluation: every benchmark question is distinct, so a cache hit
+    # can only be an answer written for another question (set LEXAGENT_EVAL_MEMORY_CACHE to change).
+    memory = AdaptiveMemory(namespace=memory_namespace, cache_mode=os.environ.get("LEXAGENT_EVAL_MEMORY_CACHE", "off"))
 
     graph = build_lexagent_graph(llm, hybrid, cce, ddc, memory, embedder)
 
@@ -412,6 +414,7 @@ def run_single_agent_rag_baseline(limit: int = 100) -> dict:
     collection = client.get_or_create_collection(coll_name)
 
     from src.data.build_corpus import load_corpus
+    from config import CORPUS_JSON_PATH
     corpus_chunks = load_corpus(CORPUS_JSON_PATH) if os.path.exists(CORPUS_JSON_PATH) else []
     dense_retriever = DenseRetriever(collection, embedder)
     if os.path.exists(BM25_INDEX_PATH) and corpus_chunks:

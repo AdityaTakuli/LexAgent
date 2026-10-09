@@ -249,8 +249,14 @@ INVENTED_NO_CITE_NAMES = [
 ]
 
 
-def build_stress_test_dataset(benchmark_cases: list) -> List[Dict[str, Any]]:
-    """Builds synthetic labelled test dataset with 6 controlled citation types."""
+def build_stress_test_dataset(benchmark_cases: list, off_corpus_cases: Optional[list] = None) -> List[Dict[str, Any]]:
+    """Builds synthetic labelled test dataset with 6 controlled citation types.
+
+    off_corpus_cases are the real cases known to be absent from the corpus being tested
+    (class 6). When not given, the fixed list written for the 27-volume landmark corpus is used.
+    """
+    if off_corpus_cases is None:
+        off_corpus_cases = OFF_CORPUS_LANDMARK_CASES
     dataset = []
 
     # 1. Correct Citations (Target case + true holding) - all benchmark cases, no limit
@@ -328,7 +334,7 @@ def build_stress_test_dataset(benchmark_cases: list) -> List[Dict[str, Any]]:
         })
 
     # 6. Real Off-Corpus Landmark Cases (Real cases outside covered volumes)
-    for off in OFF_CORPUS_LANDMARK_CASES:
+    for off in off_corpus_cases:
         dataset.append({
             "type": "real_off_corpus",
             "label": "UNVERIFIABLE",
@@ -342,7 +348,33 @@ def build_stress_test_dataset(benchmark_cases: list) -> List[Dict[str, Any]]:
     return dataset
 
 
-def run_citation_stress_test(cce: CitationConfidenceEngine, benchmark_cases: list) -> dict:
+def real_cases_outside_corpus(cce: CitationConfidenceEngine, excluded_benchmark_cases: Optional[list] = None) -> list:
+    """Real cases that are genuinely absent from the corpus the CCE is running on (class 6).
+
+    The fixed landmark list is filtered against the corpus, because on a larger corpus most of
+    those cases are in it. Benchmark cases that were left out of the test set for lack of source
+    text are real off-corpus cases by definition, so they are added.
+    """
+    catalog = getattr(cce, "catalog", None)
+    if catalog is None:
+        return list(OFF_CORPUS_LANDMARK_CASES)
+    outside = [
+        off for off in OFF_CORPUS_LANDMARK_CASES
+        if not (lambda report: report is not None and report.is_opinion)(catalog.resolve(off["case_name"], off["reporter_cite"]).report)
+    ]
+    seen = {off["case_name"] for off in outside}
+    for case in excluded_benchmark_cases or []:
+        if case.get("target_case") and case["target_case"] not in seen:
+            outside.append({
+                "case_name": case["target_case"],
+                "reporter_cite": case.get("reporter_citation", ""),
+                "year": 0,
+                "holding": case.get("ground_truth_holding", ""),
+            })
+    return outside
+
+
+def run_citation_stress_test(cce: CitationConfidenceEngine, benchmark_cases: list, off_corpus_cases: Optional[list] = None) -> dict:
     """
     Executes the Citation Stress-Test Protocol.
     Feeds synthetic labelled citations straight into factorized CCE and reports
@@ -351,7 +383,7 @@ def run_citation_stress_test(cce: CitationConfidenceEngine, benchmark_cases: lis
     logger.info("Executing Citation Stress-Test Protocol across 6 citation classes...")
     start_time = time.time()
 
-    dataset = build_stress_test_dataset(benchmark_cases)
+    dataset = build_stress_test_dataset(benchmark_cases, off_corpus_cases)
     per_type_counts: Dict[str, Dict[str, int]] = {}
     detailed_results = []
 

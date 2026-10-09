@@ -8,7 +8,8 @@ from config import (
     DDC_MAX_ROUNDS, DDC_CCS_CONTINUE_THRESH, DDC_MIN_GAPS_TO_CONTINUE,
     DDC_CHALLENGE_STRENGTH_THRESH,
 )
-from src.agents.state import LexAgentState
+from src.agents.state import LexAgentState, debate_protocol
+from src.novel.ledger import has_reliable_citation
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -35,6 +36,9 @@ class DynamicDebateController:
         if current_round >= DDC_MAX_ROUNDS - 1:
             logger.info("DDC: Max rounds (%d) reached — TERMINATE", DDC_MAX_ROUNDS)
             return "TERMINATE", f"Maximum rounds ({DDC_MAX_ROUNDS}) reached"
+
+        if use_cce and debate_protocol(state) == "ledger":
+            return self._decide_from_ledger(state, gaps, current_round)
 
         # 2. Extract min_ccs to prevent bad citations from hiding behind averages
         report = state.get("citation_confidence_report", {})
@@ -70,6 +74,35 @@ class DynamicDebateController:
             return "TERMINATE", reason
 
         reason = f"Deliberation concluded: avg_CCS={avg_ccs:.2f}, gaps={len(gaps)}, round={current_round}"
+        logger.info("DDC: TERMINATE — %s", reason)
+        return "TERMINATE", reason
+
+    def _decide_from_ledger(self, state: LexAgentState, gaps: list, current_round: int) -> tuple:
+        """Ledger protocol: another round is worth its cost only while the debate has nothing to
+        rest an answer on, something is still open, and the last round brought something new.
+
+        Two conditions of the earlier rule are gone, for the reasons the audit measured: the mean
+        and minimum score (a supported citation next to an unsupported one no longer forces a
+        round), and the defense's self-reported challenge strength (it was above the threshold in
+        all 288 rounds of the 96 debates examined, 0.8 in 287 of them, so it decided nothing).
+        """
+        supported = has_reliable_citation(state.get("citation_ledger"))
+        has_gaps = len(gaps) >= DDC_MIN_GAPS_TO_CONTINUE
+        new_passages = int(state.get("round_new_passages", 0) or 0)
+        new_supported = int(state.get("round_new_supported", 0) or 0)
+        progress = (new_passages + new_supported) > 0
+        facts = (f"round {current_round + 1}: supported citation in the ledger={'yes' if supported else 'no'}, "
+                 f"gaps={len(gaps)}, new passages={new_passages}, newly supported={new_supported}")
+        if supported:
+            reason = f"A supported citation exists; no further round is needed ({facts})"
+        elif not has_gaps:
+            reason = f"Nothing supported and no open gap to search for ({facts})"
+        elif not progress:
+            reason = f"Nothing supported and the last round brought nothing new ({facts})"
+        else:
+            reason = f"No supported citation yet and a gap remains ({facts}). Initiating next debate round."
+            logger.info("DDC: CONTINUE — %s", reason)
+            return "CONTINUE", reason
         logger.info("DDC: TERMINATE — %s", reason)
         return "TERMINATE", reason
 

@@ -1,0 +1,25 @@
+% Fig. 5 - post-audit runs: how often the target decision is cited, by system (column width).
+% Upper four: earlier retrieval. Lower three: retrieval trained for retrieval.
+\begin{tikzpicture}
+\begin{axis}[
+    xbar, width=0.70\columnwidth, height=9.2cm,
+    bar width=5.5pt, enlarge y limits=0.09,
+    xmin=0, xmax=112, xtick={0,25,50,75,100},
+    xlabel={share of the \ResTestCases\ questions (\%)},
+    symbolic y coords={G,F,E,D,C,B,A},
+    ytick={G,F,E,D,C,B,A},
+    yticklabels={{Final debate$^{\star}$},{Baseline, 8 passages$^{\star}$},{Baseline, 4 passages$^{\star}$},{Repaired debate},{First debate, cache off},{Baseline, 8 passages},{Baseline, 4 passages}},
+    y tick label style={font=\sffamily\scriptsize, align=right},
+    x tick label style={font=\sffamily\scriptsize}, xlabel style={font=\sffamily\scriptsize},
+    xmajorgrids, grid style={black!12}, axis line style={black!45}, tick style={black!45},
+    nodes near coords, nodes near coords style={font=\sffamily\tiny, text=black!85, /pgf/number format/.cd, fixed, fixed zerofill, precision=1},
+    legend style={font=\sffamily\scriptsize, draw=none, fill=none, at={(0.30,1.02)}, anchor=south, legend columns=1},
+    legend image code/.code={\draw[#1, draw=none] (0cm,-0.09cm) rectangle (0.28cm,0.11cm);},
+    reverse legend,
+]
+\addplot[fill=cPros, draw=none] coordinates {(\ResPaFinalTargetAny,G) (\ResPaBaseEightRTargetAny,F) (\ResPaBaseFourRTargetAny,E) (\ResPaFullTargetAny,D) (\ResPaOldTargetAny,C) (\ResPaBaseEightTargetAny,B) (\ResPaBaseFourTargetAny,A)};
+\addlegendentry{Target cited by any agent}
+\addplot[fill=cRetr, draw=none] coordinates {(\ResPaFinalTargetAnswer,G) (\ResPaBaseEightRTargetAnswer,F) (\ResPaBaseFourRTargetAnswer,E) (\ResPaFullTargetAnswer,D) (\ResPaOldTargetAnswer,C) (\ResPaBaseEightTargetAnswer,B) (\ResPaBaseFourTargetAnswer,A)};
+\addlegendentry{Target cited by the answer}
+\end{axis}
+\end{tikzpicture}

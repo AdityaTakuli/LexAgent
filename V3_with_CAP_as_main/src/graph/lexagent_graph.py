@@ -7,7 +7,7 @@ from typing import Any
 
 from langgraph.graph import StateGraph, END
 
-from src.agents.state import LexAgentState
+from src.agents.state import LexAgentState, debate_protocol
 from src.agents.prosecutor_agent import prosecutor_node
 from src.agents.defense_agent import defense_node, make_defense_node
 from src.agents.reflection_agent import reflection_node
@@ -108,9 +108,17 @@ def _make_retrieve_node(hybrid_retriever: Any):
             results = hybrid_retriever.retrieve(query, jurisdiction)
 
         entity_map = hybrid_retriever.get_entity_map(results) if hasattr(hybrid_retriever, "get_entity_map") else {}
-        return {
+        updates = {
             "retrieved_passages": results,
             "entity_map":         entity_map,
             "debate_round":       current_round,
         }
+        if debate_protocol(state) == "ledger":
+            # The controller continues a debate only if a round brought something new.
+            seen = list(state.get("seen_passage_ids") or [])
+            known = set(seen)
+            new_ids = [doc.doc_id for doc in results if getattr(doc, "doc_id", None) and doc.doc_id not in known]
+            updates["seen_passage_ids"] = seen + list(dict.fromkeys(new_ids))
+            updates["round_new_passages"] = len(set(new_ids))
+        return updates
     return retrieve_node

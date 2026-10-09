@@ -1,0 +1,909 @@
+% LexAgent - IEEE conference paper.
+% Build:  paper/build.ps1   (regenerates generated/results.tex from the saved result files, then compiles)
+% Every reported number is a macro from generated/results.tex; none is typed by hand.
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+
+\usepackage{cite}
+\usepackage{amsmath}
+% Tectonic compiles with XeTeX: Times-compatible text and math fonts are loaded by file name.
+\usepackage{fontspec}
+\usepackage{unicode-math}
+\setmainfont{texgyretermes}[Extension=.otf, UprightFont=*-regular, BoldFont=*-bold, ItalicFont=*-italic, BoldItalicFont=*-bolditalic, Ligatures=TeX]
+\setsansfont{texgyreheros}[Extension=.otf, UprightFont=*-regular, BoldFont=*-bold, ItalicFont=*-italic, BoldItalicFont=*-bolditalic, Scale=0.92]
+\setmonofont{texgyrecursor}[Extension=.otf, UprightFont=*-regular, BoldFont=*-bold, ItalicFont=*-italic, BoldItalicFont=*-bolditalic, Scale=0.92]
+\setmathfont{texgyretermes-math.otf}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\usepackage{pgfplotstable}
+\usepackage{balance}
+\usepackage[hidelinks]{hyperref}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,shapes.misc,calc,fit,backgrounds}
+\usepgfplotslibrary{groupplots}
+\pgfplotsset{compat=1.17}
+
+% Colour system shared by every figure.
+\definecolor{cData}{HTML}{0F9D94}    % sources
+\definecolor{cPipe}{HTML}{0B7285}    % pipeline stages
+\definecolor{cStore}{HTML}{3B5BDB}   % indexes
+\definecolor{cRetr}{HTML}{2A78D6}    % retrieval / LexAgent series
+\definecolor{cAgent}{HTML}{7048E8}   % debate lane
+\definecolor{cPros}{HTML}{EB6834}    % prosecutor / baseline series
+\definecolor{cDef}{HTML}{D6336C}     % defense
+\definecolor{cJudge}{HTML}{5B4BC4}   % judge
+\definecolor{cVerify}{HTML}{1E9E55}  % citation checker
+\definecolor{cCtrl}{HTML}{E0A100}    % controller
+\definecolor{cRefl}{HTML}{1098AD}    % reflection
+\definecolor{cMemory}{HTML}{9C36B5}  % memory
+\definecolor{cUser}{HTML}{495057}    % input / output
+\definecolor{cFab}{HTML}{D7263D}     % fabricated
+\definecolor{cNeutral}{HTML}{868E96} % unverifiable / neutral
+
+\input{generated/results.tex}
+\input{generated/table_rows.tex}
+
+\newcommand{\sys}{LexAgent}
+\newcommand{\pp}{\,pp}
+\newcommand{\yes}{\textcolor{cVerify}{\textbf{yes}}}
+\newcommand{\no}{\textcolor{black!55}{no}}
+\newcommand{\partialy}{\textcolor{cCtrl!70!black}{partial}}
+% A paired difference from generated/results.tex: #1 comparison, #2 measure, #3 unit.
+\newcommand{\cmp}[3]{\csname ResCmp#1#2Diff\endcsname#3, interval [\csname ResCmp#1#2Low\endcsname, \csname ResCmp#1#2High\endcsname]#3, \csname ResCmp#1#2P\endcsname}
+\newcommand{\cmpword}[2]{\csname ResCmp#1#2Word\endcsname}
+\newcommand{\cmprow}[3]{#1 & \csname ResCmp#2#3Diff\endcsname\csname ResCmp#2#3Mark\endcsname & [\csname ResCmp#2#3Low\endcsname, \csname ResCmp#2#3High\endcsname] & \csname ResCmp#2#3P\endcsname \\}
+
+\begin{document}
+
+\title{LexAgent: Adversarial Multi-Agent Debate with Opinion-Grounded Citation Verification for Legal Question Answering}
+
+% ── Authors: placeholders. Replace before submission. ───────────────────────
+\author{\IEEEauthorblockN{Author Name(s)}
+\IEEEauthorblockA{Department, Institution\\
+City, Country\\
+email@institution.edu}%
+\thanks{Draft. Scores as written on \ResPaScoresWritten. The seeds behind every value are stated in the tables.}}
+
+\maketitle
+
+\begin{abstract}
+Large language models invent legal authorities and attach holdings to real cases that those cases never contained. We built \sys\ to address both problems: a prosecutor agent and a defense agent debate a legal question over retrieved Supreme Court opinions, while a citation checker, a debate controller and a memory work inside the debate loop. The system runs on a corpus of \ResCorpusVolumes\ volumes of the United States Reports (\ResCorpusChunks\ passages) that we assembled with a three-stage, crash-resumable pipeline. Our first evaluation, on \ResTestCases\ questions about landmark decisions, found that the debate did no better than a single-agent retrieval-augmented baseline. When we audited that evaluation, we found that it could not have shown anything else. A verdict cache keyed on embedding similarity had answered \ResAudCacheBench\ of the \ResTestCases\ questions with the stored answer to a different question, two of our four measures did not measure what their names suggested, and the entailment model inside the citation checker accepted only \ResStressCorrectAcceptedPct\% of correct citations. We made six repairs. They include a checker whose support verdict takes effect only after the support model has passed a held-out validation (test AUC \ResGateTestAUC), a ledger that preserves what each round verified, and a retriever trained for retrieval. Late in the work we discovered that our corrected evaluation had a flaw of its own: the baseline's output parser dropped citations that the model wrote as plain strings, which affected \ResParseChangedTotal\ of \ResParseAnswersTotal\ baseline answers. After correcting both evaluations, the repairs raise the share of debate answers that rest on the target decision from \ResPaOldTargetAnswer\% to \ResPaFinalTargetAnswer\% and shorten a debate from \ResPaOldSecondsPerCase\ to \ResPaFinalSecondsPerCase\ seconds, and no debate answer rests on a non-existent case. Even so, the single-agent baseline on the same retriever reaches \ResPaBaseFourRTargetAnswer\%, scores higher on citation recall, citation precision, grounded answers, ROUGE-L and BERTScore, and answers in \ResPaBaseFourRSecondsPerCase\ seconds. On this benchmark, with a 7-billion-parameter generator, adversarial debate with in-loop verification did not improve on single-agent retrieval-augmented generation. The only benefit we could measure is that it keeps non-existent citations out of the final answer.
+\end{abstract}
+
+\begin{IEEEkeywords}
+legal question answering, hallucination, multi-agent debate, citation verification, retrieval-augmented generation, evaluation audit, negative result
+\end{IEEEkeywords}
+
+% ════════════════════════════════════════════════════════════════════════════
+\section{Introduction}
+Generative language models write legal text that reads well and is often wrong. Profiling studies report that general-purpose models fabricate or misstate authority in a majority of case-law queries~\cite{dahl2024}, and commercial legal research tools built on retrieval-augmented generation (RAG) have been measured to hallucinate in 17\% to 33\% of queries~\cite{magesh2025}. The consequences are already visible in court records. In \emph{Mata v.\ Avianca, Inc.}, counsel was sanctioned for filing a brief that cited non-existent decisions produced by a language model~\cite{mata2023}. Courts have begun to respond at the level of policy as well: the Centre for Research and Planning of the Supreme Court of India lists hallucinated and fabricated content among the main risks of using artificial intelligence in the judiciary and requires human verification of every output~\cite{sciwhitepaper2025}.
+
+It helps to separate two kinds of error. A \emph{fabricated} citation names a decision that does not exist. A \emph{misattributed} citation names a real decision but credits it with a holding it does not contain. Retrieval reduces the first kind and does much less for the second, because a generator can still cite a retrieved case for a proposition the case does not support. Existing remedies each cover part of the problem. Post-generation detectors examine an answer once and cannot repair it. Multi-agent debate improves reasoning through critique, yet none of the debate systems we reviewed checks a citation against the text of the cited decision. And no system discussed in Section~\ref{sec:related} carries what it has learned about unreliable citations from one query to the next.
+
+We set out to combine these three capabilities in a single state machine, which we call \sys. The project did not go as planned, and this paper reports what actually happened. Our first evaluation showed no advantage over a single-agent baseline. Before accepting that result we audited the saved outputs, the run logs and the code, and found that the outcome had been shaped largely by the evaluation itself. We therefore present the first evaluation as it was recorded, the audit, the repairs that followed, and a second evaluation of the repaired system. That second evaluation turned out to contain an error too, which we describe and correct. What remains after all corrections is a clear and somewhat sobering result: the repaired debate is a far better debate than the one we started with, and it is still not better than a single agent. Our contributions are the following.
+\begin{itemize}
+\item \textbf{An adversarial debate graph with verification inside the loop.} A prosecutor and an evidence-disjoint defense argue over retrieved opinions. Every citation is scored before the next agent acts, a controller decides from citation quality whether the debate continues, and a memory stores verdicts and citation risk. All agents run on one open 7-billion-parameter model on a single GPU.
+\item \textbf{A factorised, opinion-grounded citation verifier with a validation gate.} We decide existence by resolving the case name and reporter cite against a catalog of every report in the corpus. We decide support only against passages of the resolved opinion, and the support verdict is allowed to influence the debate only once the support model has passed a validation on held-out labelled citations.
+\item \textbf{A reproducible corpus pipeline.} We download, chunk and index \ResCorpusVolumes\ volumes of the United States Reports in three independent, resumable stages, and every run verifies the stored artifacts from disk.
+\item \textbf{Two audits of our own evaluation.} The first audit uncovers a verdict cache that replaced a third of the debates with answers to other questions, measures that did not measure what their names suggested, and a verifier that had never been validated. We quantify each defect from the existing files without repeating an experiment. The second audit finds, inside the corrected evaluation, a baseline parser that had discarded a large share of the baseline's citations.
+\item \textbf{A repaired system and a negative result.} Six repairs make the debate roughly twice as likely to rest its answer on the right decision, in less than half the time. We evaluate it with seeded and fully traced runs, paired statistical tests and standard measures. The repaired debate still falls short of a single-agent baseline that uses the same retriever, and we report that result and show where the remaining loss occurs.
+\end{itemize}
+
+% The architecture figure is placed here in the source so that it floats to the top of page 2.
+\begin{figure*}[t]
+\centering
+\input{figures/architecture.tex}
+\caption{Architecture of the final \sys\ system. Lane~A builds the corpus offline in three resumable stages. Lane~B holds the resulting stores. Lane~C is the debate graph: solid arrows are control flow, dashed arrows are data read from the stores, and the amber arrow is the loop taken when the controller requests another round.}\label{fig:arch}
+\end{figure*}
+
+% ════════════════════════════════════════════════════════════════════════════
+\section{Related Work}\label{sec:related}
+
+\subsection{Domain-Specific Legal Language Models}
+Early mitigation relied on domain adaptation. DISC-LawLLM fine-tunes a general model on a supervised legal corpus built around syllogistic prompting and adds a retrieval module~\cite{disclawllm}; LawGPT injects Chinese legal knowledge through pre-training and instruction tuning~\cite{lawgpt}; Lawformer extends the context window for long legal documents~\cite{lawformer}. Progress is tracked by LegalBench~\cite{legalbench}, LawBench~\cite{lawbench}, LexGLUE~\cite{lexglue} and LegalAgentBench~\cite{legalagentbench}. Fine-tuning shifts the output distribution toward legally plausible phrasing. It does not add a mechanism that separates plausible text from verified text, and a fine-tuned model still completes a query at the edge of its training distribution with an authority that conforms to the style of the jurisdiction.
+
+\subsection{Retrieval-Augmented Generation for Legal Text}
+RAG conditions generation on passages retrieved from an external corpus~\cite{lewis2020}. Corrective RAG grades the retrieved documents and triggers corrective retrieval when their quality is insufficient~\cite{crag}; HyPA-RAG adapts retrieval parameters to query complexity for legal and policy text~\cite{hyparag}; agentic search extends retrieval into multi-step legal reasoning~\cite{lras}. Legal relevance is neither purely lexical nor purely semantic: a statute number or a party name must match exactly, whereas a controlling precedent may share no vocabulary with the question. Hybrid retrieval therefore combines BM25~\cite{bm25} with dense retrieval over legal embeddings such as Legal-BERT~\cite{legalbert}, and merges the two rankings by reciprocal rank fusion (RRF), which requires no score calibration~\cite{rrf}. Hybrid strategies are reported to outperform single-modality retrieval for legal case retrieval~\cite{sectionhybrid} and for graph-augmented legal question answering~\cite{leakgraphrag}. Measured hallucination rates of deployed legal RAG tools~\cite{magesh2025} nevertheless show that correct retrieval does not ensure correct use of the retrieved text.
+
+\subsection{Post-Generation Detection and Symbolic Constraints}
+SelfCheckGPT detects hallucination from the disagreement among stochastic samples of one model~\cite{selfcheckgpt}; Chain-of-Verification has the model draft and answer verification questions about its own output~\cite{cove}; Self-RAG trains a model to emit reflection tokens that trigger retrieval and self-critique~\cite{selfrag}. In each method the verifier shares its parameters with the generator, so a systematic error is reproduced consistently and passes the check. External structure removes that dependence. HalluGraph aligns knowledge graphs extracted from the context and from the response and reports entity grounding and relation preservation, with an area under the curve near 0.98 on structured control documents and near 0.89 on generative legal tasks~\cite{hallugraph}. Falkor-IRAC constrains generation with an issue-rule-analysis-conclusion graph of Indian judgments and gives a verifier agent authority to reject an output that has no supporting path~\cite{falkorirac}. Both systems audit a single generation pass; a rejected output is discarded, not refined.
+
+\subsection{Multi-Agent Debate}
+Debate among several model instances improves factuality and reasoning~\cite{du2024}. Agents with conflicting roles counteract premature consensus, termed degeneration of thought~\cite{liang2024}, although the gains depend strongly on the debate configuration~\cite{smit2024}. General frameworks such as MetaGPT~\cite{metagpt} and AutoGen~\cite{autogen} provide cooperative role orchestration. In the legal domain, ChatLaw routes a query through cooperating specialised agents over a knowledge-graph-enhanced mixture of experts~\cite{chatlaw}; no agent is assigned to contest another agent's claims. AgentCourt simulates court proceedings with adversarial lawyer agents that evolve through accumulated experience~\cite{agentcourt}. PROClaim casts claim verification as courtroom deliberation with progressive retrieval during the debate and reports 81.7\% accuracy on Check-COVID, of which progressive retrieval contributes 7.5 percentage points~\cite{proclaim}; it targets biomedical claims, uses proprietary models, and keeps no state between queries.
+
+\subsection{Positioning}
+Table~\ref{tab:related} summarises the structural properties of the most closely related systems. Role specialisation, entity-level verification against a corpus, and adversarial debate with iterative retrieval have each been demonstrated separately. As far as we could find, no existing system verifies citations inside the debate loop, and none keeps citation-level memory across queries. We designed \sys\ to fill that gap using open models and commodity hardware.
+
+\begin{table}[t]
+\caption{Structural comparison with related systems}\label{tab:related}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{2.6pt}
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+System & \shortstack{Adversarial\\debate} & \shortstack{In-loop\\citation\\check} & \shortstack{Hybrid\\retrieval} & \shortstack{Cross-\\query\\memory} & \shortstack{Open\\models} \\
+\midrule
+ChatLaw~\cite{chatlaw}            & \no  & \no & \yes      & \no       & \yes \\
+HalluGraph~\cite{hallugraph}      & \no  & \no & \no       & \no       & \yes \\
+LeAK-GraphRAG~\cite{leakgraphrag} & \no  & \no & \yes      & \no       & \yes \\
+Falkor-IRAC~\cite{falkorirac}     & \no  & \no & \no       & \no       & \yes \\
+AgentCourt~\cite{agentcourt}      & \yes & \no & \no       & \partialy & \yes \\
+PROClaim~\cite{proclaim}          & \yes & \no & \partialy & \no       & \no  \\
+\midrule
+\textbf{\sys\ (this work)}        & \yes & \yes & \yes     & \yes      & \yes \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ════════════════════════════════════════════════════════════════════════════
+\section{System Overview}
+Fig.~\ref{fig:arch} shows the architecture of the final system. An offline pipeline (lane A) turns the source volumes into the knowledge stores of lane B: the retrieval indexes, a case catalog and a set of canonical case names, all tied to a single corpus fingerprint. At query time a LangGraph state machine (lane C) runs the debate. A state object carries the question, the retrieved passages, the arguments and citations of both sides, the citation report, the reflection output and the controller's decision. Each node reads the state and returns an update.
+
+A query first passes a memory check. If the memory already holds a verdict for the same question, that verdict is returned without a debate; otherwise the citations previously found unreliable are attached to the state. Hybrid retrieval then supplies passages. The prosecutor argues for an answer, and the defense challenges it using counter-evidence that it retrieves independently. The Citation Confidence Engine (CCE) checks every citation from both sides. A reflection agent lists the gaps that remain and proposes follow-up queries, and the Dynamic Debate Controller (DDC) either starts another round with those queries or hands over to the judge. The judge may rest its answer only on citations the CCE marked as supported. Finally, the verdict and the citation risk observed during the debate are written to memory. Several of these components changed between our first and our final system: the rule for matching a stored verdict, the support test of the CCE, the way verified citations are kept across rounds, the controller's stopping rule, and the retriever. Section~\ref{sec:method} describes the original design, and Sections~\ref{sec:repairs} and~\ref{sec:remaining} describe each change and the reason for it.
+
+% ════════════════════════════════════════════════════════════════════════════
+\section{Corpus Construction}
+
+\subsection{Sources}
+Our primary source is the Caselaw Access Project (CAP)~\cite{cap}, which publishes the United States Reports as one metadata file and one JSON document per case for each volume. We targeted volumes 1 to \ResCorpusVolumesTarget. CAP covers volumes 1 to \ResCorpusVolumesCap. For volumes 573 to 593 we extracted the opinions ourselves from the bound volumes and preliminary prints published by the Supreme Court~\cite{usreports}. Our parser reads each PDF page by page, classifies running heads to locate case boundaries, restores ligatures from glyph identifiers, and moves footnotes to the end of the opinion. We validated it against CAP on volume 572, where it found all 27 opinions at the same starting page. Volumes 594 to \ResCorpusVolumesTarget\ have no published opinion text in either source. We record them as unavailable instead of skipping them silently.
+
+\subsection{Staged, Resumable Ingestion}
+We split ingestion into three stages that share no in-memory state. Stage~1 only downloads, Stage~2 only chunks and never touches the network, and Stage~3 only embeds and indexes. Each stage keeps a ledger with one state per volume (Fig.~\ref{fig:pipeline}) and commits a positional checkpoint after every \ResCorpusCheckpointInterval\ volumes. Ledgers and artifacts are written atomically: the content goes to a temporary file, is flushed to disk, and is then renamed over the target. A stage resumes by default. On every run it re-reads each artifact, checks its schema version, status and content hash, and reprocesses only the volumes whose artifact is missing or invalid. A chunk file also records the hash of the raw volume it was derived from, so it is invalidated whenever that hash changes.
+
+Stage~3 computes a fingerprint over the ordered chunk identifiers and metadata. The corpus file, the lexical index, the known-case set, the case catalog and the embedding checkpoint each store that fingerprint, so an index built from one corpus cannot be combined with another by mistake. If the corpus grows and the previous corpus is an unchanged prefix, only the new passages are embedded. We never delete existing data without an explicit overwrite instruction.
+
+\begin{figure}[t]
+\centering
+\input{figures/pipeline.tex}
+\caption{State of one volume in a pipeline stage. Dashed transitions occur between runs.}\label{fig:pipeline}
+\end{figure}
+
+\subsection{Chunking, Indexing and the Case Catalog}
+We split each case into windows of 450 words with an overlap of 75 words. A chunk inherits the case name, year, court, volume, reporter and first page of its parent, and it records the parent identifier and its word offsets. We embed the passages with Legal-BERT~\cite{legalbert} and store them in a persistent ChromaDB collection~\cite{chroma}, and we build a BM25 index over the same passages.
+
+The case catalog lists every report in the corpus with its name, reporter citation, year, number of chunks and number of words. We classify a report of fewer than 300 words as an order entry (for example, a one-line denial of certiorari) and do not treat it as an opinion. The verifier needs this distinction, because the name of a landmark decision usually also appears in several order entries, while a holding can only be checked against the opinion. Table~\ref{tab:corpus} gives the corpus statistics.
+
+\begin{table}[t]
+\caption{Corpus statistics}\label{tab:corpus}
+\centering
+\footnotesize
+\begin{tabular}{@{}lr@{}}
+\toprule
+Quantity & Value \\
+\midrule
+Target volumes of the United States Reports & \ResCorpusVolumesTarget \\
+Volumes indexed & \ResCorpusVolumes \\
+\quad from the CAP static API & \ResCorpusVolumesCap \\
+\quad from official Supreme Court PDFs & \ResCorpusVolumesPdf \\
+Volumes without published opinion text & \ResCorpusVolumesUnavailable \\
+Volumes failed & \ResCorpusFailedVolumes \\
+Case documents (CAP / official PDFs) & \ResCorpusCasesCap\ / \ResCorpusCasesPdf \\
+Reports in the case catalog & \ResCorpusReports \\
+\quad opinions ($\geq 300$ words) & \ResCorpusOpinions \\
+\quad order entries ($< 300$ words) & \ResCorpusOrders \\
+Passages (450 words, 75 overlap) & \ResCorpusChunks \\
+Decision years & \ResCorpusYearFirst--\ResCorpusYearLast \\
+Dense index on disk & \ResCorpusIndexGB\ GB \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ════════════════════════════════════════════════════════════════════════════
+\section{Method}\label{sec:method}
+
+\subsection{Hybrid Retrieval}
+This section describes the system as we first built it; the later changes are described where they were made. For a query $q$, the dense retriever returns the four passages nearest to the Legal-BERT embedding of $q$, and the lexical retriever returns the four passages with the highest BM25 score. The two rankings are merged by reciprocal rank fusion~\cite{rrf}:
+\begin{equation}
+\mathrm{RRF}(d) = \sum_{m \in \{\mathrm{dense},\,\mathrm{BM25}\}} \frac{1}{k + \mathrm{rank}_m(d)}, \qquad k = 60,
+\end{equation}
+and at most eight fused passages are passed to the debate. An entity map from case names and reporter citations to the retrieved passages is built for each round. In rounds after the first, the query is extended with up to two follow-up queries issued by the reflection agent, so that the evidence pool changes while the debate is in progress.
+
+\subsection{Debate Agents}
+All agents are instances of Mistral-7B-Instruct-v0.3~\cite{mistral7b} with role-specific system prompts and are required to return a JSON object.
+
+The \emph{prosecutor} argues an answer to the question from the retrieved passages. Its prompt restricts citations to cases present in the retrieved context and lists the citations that memory marks as high risk. Each citation is returned with a case name, a reporter cite and the holding it is cited for.
+
+The \emph{defense} is evidence-disjoint. Counter-queries are generated deterministically from the question and from the prosecutor's citations and holdings, and the passages they retrieve exclude every passage the prosecutor received. The defense returns challenges, a counter-argument, its own citations, a challenge strength in $[0,1]$ and a concession flag. The share of defense citations that merely repeat the prosecutor's evidence is recorded as the evidence overlap ratio.
+
+The \emph{reflection} agent reads the exchange, lists propositions that neither side has supported, and emits follow-up queries.
+
+The \emph{judge} receives the debate and the citation confidence report of the last round and returns a verdict, the citations relied on, the citations considered uncertain and a self-assessed confidence. A citation named by the judge that the CCE did not mark as supported is removed from the verified list by the program, not by the prompt.
+
+\subsection{Citation Confidence Engine}\label{sec:cce}
+The CCE scores each citation $c = (n, r, h)$, where $n$ is the case name, $r$ the reporter cite and $h$ the asserted holding, in the order shown in Fig.~\ref{fig:cce}.
+
+\emph{Existence.} $E(c) = 1$ if $n$ equals a canonical name in the corpus. Otherwise $E$ is the best fuzzy similarity between $n$ and a canonical name. In a catalog of this size a loose match exists for almost any name, so a fuzzy match is retained only if both party names agree with the candidate or the character-level similarity is at least 0.85.
+
+\emph{Resolution.} The pair $(n, r)$ is resolved to one report in the case catalog. If the report printed at the cited volume and page carries the cited name, the cite is confirmed and $E = 1$. If the name only resembles a real case and the cite belongs to a different case, the citation as given does not exist and $E = 0$. When several reports share the name, the opinion is preferred over order entries.
+
+\emph{Verdict without support.} If $E < 0.85$ the citation is labelled \textsc{fabricated} when the cited volume lies within the corpus, and \textsc{unverifiable} otherwise. A real case whose opinion text is not in the corpus is \textsc{unverifiable}. No support score is computed in these cases.
+
+\emph{Support.} For an existing case with an opinion, the three passages of \emph{that opinion} most similar to the embedding of $h$ are selected through a metadata filter on the parent document. The selected text is divided into units $w_1,\dots,w_J$ and scored by a cross-encoder for natural-language inference:
+\begin{align}
+S(c) &= \max_{1 \leq j \leq J} \; P_{\mathrm{NLI}}\!\left(\text{entailment} \mid w_j,\, h\right), \\
+\mathrm{CCS}(c) &= E(c) \cdot S(c).
+\end{align}
+
+\emph{First version.} In our first evaluation the units were overlapping windows of 450 characters, the model was a small DeBERTa-v3 cross-encoder~\cite{debertav3}, and the tier was \textsc{supported} if $S \geq 0.70$, \textsc{uncertain} if $0.40 \leq S < 0.70$, and \textsc{misattributed} if $S < 0.40$. We had validated neither the model nor the thresholds on labelled citations.
+
+\emph{Repaired version.} The repaired checker (Fig.~\ref{fig:cce}) reports two verdicts for each citation. The existence verdict is one of \emph{exists}, \emph{not found} and \emph{not in corpus}. The support verdict is computed by a model, a passage selection and a threshold $\tau_g$ that are named in a gate file. The gate file is written by a validation experiment (Section~\ref{sec:validation}) and opens the gate only if the selected model separates correct from incorrect holdings on held-out citations with an area under the ROC curve of at least \ResGateRequiredAUC. With the gate open, a citation is \textsc{supported} if $S \geq \tau_g$, \textsc{misattributed} if the model assigns a contradiction probability of at least 0.90 to one of the units, and \textsc{not shown} otherwise. The last tier states that the passages read do not show the holding; it does not state that the citation is wrong. With the gate closed, an existing citation is labelled \textsc{verified} with $\mathrm{CCS} = E$, and no support verdict reaches the judge, the controller or the memory. In both versions a citation whose holding is supported but whose reporter cite belongs to another case is capped at \textsc{uncertain}.
+
+The order of these steps is the central design decision. A verifier that retrieves evidence by case name alone compares the holding with whichever passage happens to carry that name, and in this corpus that is often an order entry or an unrelated passage. Resolving the citation to its opinion first removes that failure. We measure its effect in Section~\ref{sec:stress}.
+
+\begin{figure}[t]
+\centering
+\input{figures/cce.tex}
+\caption{Decision procedure of the repaired Citation Confidence Engine. Existence and cite resolution precede the support test, support is computed only against the opinion the citation resolves to, and the support test is used only when a support model has passed validation.}\label{fig:cce}
+\end{figure}
+
+\subsection{Dynamic Debate Controller}
+After each round $t$ the controller reads the mean score $\overline{\mathrm{CCS}}_t$, the minimum score $\mathrm{CCS}^{\min}_t$, the gap list $G_t$ of the reflection agent, the challenge strength $\sigma_t$ and the concession flag. With $W_t = [\overline{\mathrm{CCS}}_t < 0.60] \lor [\mathrm{CCS}^{\min}_t < 0.40]$ denoting weak citations, the debate continues if and only if
+\begin{equation}
+t < T_{\max} \;\land\; \lnot\,\mathrm{concede}_t \;\land\; |G_t| \geq 1 \;\land\; \bigl(W_t \lor \sigma_t > 0.5\bigr),
+\end{equation}
+with $T_{\max} = 3$ rounds. The minimum is included so that a single unsupported citation cannot be hidden by a favourable mean. Weak citations without any identified gap terminate the debate, since no follow-up query is available.
+
+\subsection{Adaptive Memory}\label{sec:memory}
+Memory consists of two vector collections keyed by Legal-BERT embeddings. The \emph{verdict cache} stores the final answer of each debate. In the first version a new query whose cosine similarity to a stored query exceeds 0.92 is answered from the cache, and only the answer text is restored. In the repaired version a stored verdict is returned only for the same question, compared after lower-casing and removal of punctuation and surplus white space, and the citations and the confidence of the stored verdict are restored with the answer. The \emph{citation-risk index} stores, for every citation labelled \textsc{fabricated}, \textsc{misattributed} or \textsc{unverifiable}, a running mean of its CCS. At the start of a debate the five risk entries nearest to the query are retrieved, and those with a mean score below 0.45 are passed to the prosecutor and the defense as citations to avoid.
+
+\subsection{Verification-Grounded Confidence}
+We tie the confidence reported with a verdict to the verification outcome, and not to the judge's self-assessment alone. Let $V$ be the set of verified citations the judge relies on, $U$ the set of citations it lists as uncertain, $\overline{\mathrm{CCS}}_V$ the mean score over $V$, and $\gamma$ the self-assessed confidence. Then
+\begin{equation}
+\mathrm{conf} =
+\begin{cases}
+0.7\,\overline{\mathrm{CCS}}_V + 0.3\,\gamma, & |V| > 0,\\
+\min(\gamma,\, 0.35), & |V| = 0,\ |U| > 0,\\
+\min(\gamma,\, 0.20), & |V| = |U| = 0.
+\end{cases}
+\end{equation}
+As a result, an answer that rests on no verified citation cannot be reported with high confidence, however the model rates itself.
+
+% ════════════════════════════════════════════════════════════════════════════
+\section{First Evaluation}\label{sec:first}
+This section reports our first evaluation exactly as we ran and recorded it. Section~\ref{sec:audit} then explains which of these results do not mean what they appear to mean.
+
+\subsection{Implementation}
+We implemented the system in Python with LangGraph~\cite{langgraph}, ChromaDB and PyTorch, and ran all experiments on one workstation with an Intel Core Ultra~9 285K processor, 127\,GB of memory and one NVIDIA RTX~5090 GPU with 32\,GB of memory. The generator is loaded in 16-bit floating point and sampled at temperature 0.1 with at most 1024 new tokens. Table~\ref{tab:params} lists the parameters.
+
+\begin{table}[t]
+\caption{Parameters. Rows marked ``first'', ``repaired'' and ``second step'' differ between the versions of the system; all other rows are fixed.}\label{tab:params}
+\centering
+\footnotesize
+\begin{tabular}{@{}llr@{}}
+\toprule
+Component & Parameter & Value \\
+\midrule
+Chunking & window / overlap (words) & 450 / 75 \\
+Retrieval & dense top-$k$ / BM25 top-$k$ & 4 / 4 \\
+\quad second step & candidates per ranking / per-case limit & 8 / 2 \\
+ & RRF constant $k$ & 60 \\
+CCE & existence threshold & 0.85 \\
+ & passages of the opinion read & 3 \\
+\quad first & supported / uncertain from & 0.70 / 0.40 \\
+ & NLI window / stride (characters) & 450 / 350 \\
+\quad repaired & validation area required to open the gate & \ResGateRequiredAUC \\
+ & support threshold $\tau_g$ (from the gate file) & \ResGateThreshold \\
+ & contradiction probability for misattributed & 0.90 \\
+DDC & maximum rounds $T_{\max}$ & 3 \\
+ & mean / minimum CCS to continue & 0.60 / 0.40 \\
+ & challenge-strength threshold & 0.5 \\
+\quad second step & stop once a citation is supported & yes \\
+Memory & high-risk mean CCS & 0.45 \\
+\quad first & verdict cache: cosine similarity above & 0.92 \\
+\quad repaired & verdict cache: same question & exact \\
+Generator & temperature / new tokens & 0.1 / 1024 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Test Set}
+Our benchmark consists of \ResTestCasesAll\ questions on United States constitutional and federal law, each paired with a target decision and a reference holding. We keep a question only if the corpus contains enough source text of its target decision to evaluate an answer, which we define as the target resolving in the case catalog to an opinion of at least 500 words. \ResTestCasesExcluded\ questions do not meet this condition and are excluded, which leaves \ResTestCases. One of the excluded targets is represented in the corpus only by order entries, because its volume is incomplete at the source; the other three were decided in volumes that have no published opinion text. A question may draw on opinions from any number of volumes. Only the absence of the target opinion excludes it.
+
+\subsection{Baseline}
+The baseline is a single-agent RAG system that uses the same generator, the same hybrid retriever and the same corpus. The four highest-ranked passages, each truncated to 300 characters, are placed in one prompt and the model is asked for an answer with case citations. No defense, verification, controller or memory is present.
+
+\subsection{Measures of the First Evaluation}
+All measures are computed per question and averaged. Let $C$ be the set of distinct case names cited by any agent in a debate.
+\begin{itemize}
+\item \emph{Fabricated-name rate} (HR): the fraction of $C$ with no canonical name in the corpus at fuzzy similarity of at least 85.
+\item \emph{Answer semantic similarity} (ASS): cosine similarity between the Legal-BERT embeddings of the final answer and the reference holding.
+\item \emph{Authority recall} (AR): 1 if the target decision is in $C$, else 0. \emph{Authority precision} (AP): AR divided by $|C|$.
+\item \emph{Misattribution rate} (MAR) and \emph{holding-attribution accuracy} (HAA): the fractions of scored citations labelled \textsc{misattributed} and \textsc{supported} by the CCE.
+\item \emph{Unsupported-claim rate} (UCR): the fraction of citations the judge rejected.
+\item \emph{Debate convergence rate} (DCR): the fraction of debates that end in a concession or with confidence of at least 0.70.
+\end{itemize}
+We test differences between the two systems with a paired bootstrap over questions ($10^4$ resamples), and we report proportions in the stress test with 95\% Wilson intervals.
+
+\subsection{Design of the Citation Stress Test}
+We test the verifier in isolation on \ResStressTotal\ citations with known labels: (i) the \ResStressCorrectN\ target decisions with their reference holdings (\emph{correct}); (ii) the same decisions with the holding of a different benchmark question (\emph{holding swapped}); (iii) \ResStressCaseholdN\ of the target decisions paired with hand-written false statements of law that contradict settled doctrine (\emph{false-holding distractors}); (iv) \ResStressFabCiteN\ invented case names with a reporter cite inside the corpus; (v) \ResStressFabNoCiteN\ invented names without a cite; and (vi) the \ResStressOffCorpusN\ real decisions whose opinions are outside the corpus. Only type (i) should be accepted. A citation counts as accepted when its tier is \textsc{supported}.
+
+\subsection{Ablation Variants}
+Four variants each remove one component from the graph: A1 removes the defense node; A2 removes the CCE, so that the judge relies on its own citations and its own confidence; A3 removes the memory nodes; A4 replaces the controller by termination after one round. Each variant is run on all \ResTestCases\ questions with a separate, initially empty memory.
+
+\subsection{Debate System Against the Baseline, as Recorded}
+Table~\ref{tab:main} gives the recorded comparison. The fabricated-name rate is \ResLexHR\% for \sys\ and \ResBaseHR\% for the baseline; the difference of \ResDiffHR\pp\ (interval [\ResDiffHRLow, \ResDiffHRHigh]\pp) is not significant. \ResLexFlagged\ of \ResLexCites\ distinct citations were flagged for \sys\ and \ResBaseFlagged\ of \ResBaseCites\ for the baseline. Manual inspection shows that the measure over-counts: all three names flagged for the baseline, and one of the three flagged for \sys, are real decisions written with additional text such as an appended reporter cite.
+
+The baseline is recorded as significantly better on answer similarity (\ResDiffASS, interval [\ResDiffASSLow, \ResDiffASSHigh]) and on authority precision (\ResDiffAP\pp, interval [\ResDiffAPLow, \ResDiffAPHigh]\pp); the difference in authority recall (\ResDiffAR\pp, interval [\ResDiffARLow, \ResDiffARHigh]\pp) is not significant. \sys\ returned an answer without any citation in \ResLexNoCiteAnswers\ of \ResTestCases\ cases against \ResBaseNoCiteAnswers\ for the baseline. Of the \ResTestCases\ debates, \ResLexRoundsOne\ are recorded with one round and \ResLexRoundsMax\ with the maximum of \ResLexMaxRounds; the judge's confidence is bimodal, with \ResLexConfLow\ debates at or below 0.20 and \ResLexConfHigh\ at or above 0.70, and a mean of \ResLexConf.
+
+\begin{table}[t]
+\caption{First evaluation, as recorded: debate system against the single-agent baseline on \ResTestCases\ questions. $\Delta$ is \sys\ minus baseline with a 95\% paired-bootstrap interval. Section~\ref{sec:audit} qualifies every row.}\label{tab:main}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3.2pt}
+\begin{tabular}{@{}lrrrl@{}}
+\toprule
+Measure & \sys & Baseline & $\Delta$ & 95\% interval \\
+\midrule
+HR (\%) $\downarrow$ & \ResLexHR & \ResBaseHR & \ResDiffHR\ResDiffHRMark & [\ResDiffHRLow, \ResDiffHRHigh] \\
+ASS $\uparrow$ & \ResLexASS & \ResBaseASS & \ResDiffASS\ResDiffASSMark & [\ResDiffASSLow, \ResDiffASSHigh] \\
+AR (\%) $\uparrow$ & \ResLexAR & \ResBaseAR & \ResDiffAR\ResDiffARMark & [\ResDiffARLow, \ResDiffARHigh] \\
+AP (\%) $\uparrow$ & \ResLexAP & \ResBaseAP & \ResDiffAP\ResDiffAPMark & [\ResDiffAPLow, \ResDiffAPHigh] \\
+Citations per answer & \ResLexCitesPerAnswer & \ResBaseCitesPerAnswer & & \\
+Answers without citation & \ResLexNoCiteAnswers & \ResBaseNoCiteAnswers & & \\
+\midrule
+\multicolumn{5}{@{}l}{\emph{Measures defined only for the debate}} \\
+MAR (\%) & \ResLexMAR & & & \\
+HAA (\%) & \ResLexHAA & & & \\
+UCR (\%) & \ResLexUCR & & & \\
+Mean judge confidence & \ResLexConf & & & \\
+DCR (\%) & \ResLexDCR & & & \\
+Mean rounds per debate & \ResLexRoundsMean & & & \\
+\bottomrule
+\multicolumn{5}{@{}l}{$^{\ast}$ interval excludes zero.}
+\end{tabular}
+\end{table}
+
+\subsection{Results of the Citation Stress Test}\label{sec:stress}
+Table~\ref{tab:stress} and Fig.~\ref{fig:stress} report the behaviour of the first version of the CCE on labelled citations. The test does not involve the debate, and the audit leaves its results unchanged. No invented citation was accepted. Every invented citation with a reporter cite inside the corpus was labelled \textsc{fabricated}, and every invented citation without a cite, like every real decision outside the corpus, was labelled \textsc{unverifiable}; the verifier does not call a decision fabricated when it lacks the means to check it. Of the citations whose holding was swapped, \ResStressMisattrAccepted\ of \ResStressMisattrN\ (\ResStressMisattrAcceptedPct\%) were accepted, and none of the false-holding distractors. In total \ResStressFalseAccepts\ of \ResStressWrongTotal\ incorrect citations were accepted, a rejection rate of \ResStressWrongRejectedPct\%.
+
+The cost is recall. Only \ResStressCorrectAccepted\ of \ResStressCorrectN\ correct citations (\ResStressCorrectAcceptedPct\%, interval [\ResStressCorrectAcceptedLow, \ResStressCorrectAcceptedHigh]\%) were accepted, and \ResStressCorrectMisattributed\ were labelled \textsc{misattributed}. The support score separates correct from swapped holdings with an area under the ROC curve of \ResStressAUC.
+
+\emph{Effect of opinion resolution.} Table~\ref{tab:cceorder} compares the verifier with its predecessor, which retrieved evidence by case name without resolving the citation to a report. Resolution raised the acceptance of correct citations from \ResStressOldCorrectAcceptedPct\% to \ResStressCorrectAcceptedPct\%, raised the share of invented citations with a cite that are labelled \textsc{fabricated} from \ResStressOldFabCiteFabricated\ of \ResStressOldFabCiteN\ to \ResStressFabCiteFabricated\ of \ResStressFabCiteN, and removed the acceptance of invented names without a cite (\ResStressOldFabNoCiteAccepted\ of \ResStressOldFabNoCiteN\ before, \ResStressFabNoCiteAccepted\ after).
+
+\emph{Evidence selection.} To locate the cause of the low recall, we repeated the support step on the correct and the swapped citations with different selections of passages from the resolved opinion: the nearest passages in embedding space, the passages with the highest BM25 score within the opinion, a rank fusion of both, and the entire opinion.
+\ifnum\ResEvidenceComplete=0
+\textbf{[The evidence-selection study has not been run.]}
+\fi
+With three or five passages, between \ResEvFewCorrectMin\ and \ResEvFewCorrectMax\ of the \ResEvCorrectTotal\ correct citations are accepted, whichever ranking selects the passages, and between \ResEvFewSwappedMin\ and \ResEvFewSwappedMax\ of the swapped ones. Reading the entire opinion raises acceptance of correct citations to \ResEvWholeCorrect\ (\ResEvWholeCorrectPct\%), but \ResEvWholeSwapped\ swapped holdings (\ResEvWholeSwappedPct\%) are then accepted as well. With this entailment model, recall is obtained only together with false acceptance; the choice of passages does not remove the limit. Section~\ref{sec:validation} shows that the choice of model does.
+
+\begin{table}[t]
+\caption{Citation stress test of the first checker: tier assigned, by citation type}\label{tab:stress}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{2.4pt}
+\begin{tabular}{@{}lrrrrrrr@{}}
+\toprule
+Citation type & $n$ & \rotatebox{70}{Supported} & \rotatebox{70}{Uncertain} & \rotatebox{70}{Misattrib.} & \rotatebox{70}{Fabricated} & \rotatebox{70}{Unverif.} & \shortstack{Accepted\\(\%)} \\
+\midrule
+Correct & \ResStressCorrectN & \ResStressCorrectSupported & \ResStressCorrectUncertain & \ResStressCorrectMisattributed & \ResStressCorrectFabricated & \ResStressCorrectUnverifiable & \ResStressCorrectAcceptedPct \\
+Holding swapped & \ResStressMisattrN & \ResStressMisattrSupported & \ResStressMisattrUncertain & \ResStressMisattrMisattributed & \ResStressMisattrFabricated & \ResStressMisattrUnverifiable & \ResStressMisattrAcceptedPct \\
+False-holding distractor & \ResStressCaseholdN & \ResStressCaseholdSupported & \ResStressCaseholdUncertain & \ResStressCaseholdMisattributed & \ResStressCaseholdFabricated & \ResStressCaseholdUnverifiable & \ResStressCaseholdAcceptedPct \\
+Invented, with cite & \ResStressFabCiteN & \ResStressFabCiteSupported & \ResStressFabCiteUncertain & \ResStressFabCiteMisattributed & \ResStressFabCiteFabricated & \ResStressFabCiteUnverifiable & \ResStressFabCiteAcceptedPct \\
+Invented, no cite & \ResStressFabNoCiteN & \ResStressFabNoCiteSupported & \ResStressFabNoCiteUncertain & \ResStressFabNoCiteMisattributed & \ResStressFabNoCiteFabricated & \ResStressFabNoCiteUnverifiable & \ResStressFabNoCiteAcceptedPct \\
+Real, outside corpus & \ResStressOffCorpusN & \ResStressOffCorpusSupported & \ResStressOffCorpusUncertain & \ResStressOffCorpusMisattributed & \ResStressOffCorpusFabricated & \ResStressOffCorpusUnverifiable & \ResStressOffCorpusAcceptedPct \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[t]
+\caption{Effect of resolving the citation to its opinion before the support test}\label{tab:cceorder}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{@{}lrr@{}}
+\toprule
+Outcome & \shortstack{Evidence by\\case name} & \shortstack{Evidence from the\\resolved opinion} \\
+\midrule
+Correct citations accepted & \ResStressOldCorrectAccepted/\ResStressOldCorrectN & \ResStressCorrectAccepted/\ResStressCorrectN \\
+Swapped holdings accepted & \ResStressOldMisattrAccepted/\ResStressOldMisattrN & \ResStressMisattrAccepted/\ResStressMisattrN \\
+Invented with cite, labelled fabricated & \ResStressOldFabCiteFabricated/\ResStressOldFabCiteN & \ResStressFabCiteFabricated/\ResStressFabCiteN \\
+Invented without cite, accepted & \ResStressOldFabNoCiteAccepted/\ResStressOldFabNoCiteN & \ResStressFabNoCiteAccepted/\ResStressFabNoCiteN \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\input{figures/stress.tex}
+\caption{Tier assigned by the first version of the CCE to each type of citation in the stress test. Only citations of the first type should be labelled supported.}\label{fig:stress}
+\end{figure}
+
+\subsection{Ablation, as Recorded}
+\ifnum\ResAblationComplete=0
+\textbf{[The ablation summary on disk covers \ResAblationCases\ cases per variant; the values below are not final.]}
+\fi
+Table~\ref{tab:ablation} gives the recorded ablation. The runner saved one mean per measure and variant, so no interval is available. Removing memory (A3) raised mean confidence from \ResAblFullConf\ to \ResAblAThreeConf, and terminating after one round (A4) left confidence (\ResAblAFourConf) and answer similarity (\ResAblAFourASS) at the level of the full system at \ResAblAFourMinutes\ instead of \ResAblFullMinutes\ minutes. The fabricated-name rates of all variants lie between \ResAblHRMin\% and \ResAblHRMax\%. The last column of the table is taken from the audit and is explained in the next section.
+
+\begin{table}[t]
+\caption{First ablation, as recorded, on \ResAblationCases\ questions per variant. The last column, from the audit of the run logs, counts the questions that were answered from the verdict cache without a debate.}\label{tab:ablation}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3.0pt}
+\begin{tabular}{@{}llrrrrr@{}}
+\toprule
+ & Removed & \shortstack{Fabr.\\name\\rate (\%)} & \shortstack{Answer\\simi-\\larity} & \shortstack{Judge\\confi-\\dence} & \shortstack{Run\\time\\(min)} & \shortstack{Debates\\skipped} \\
+\midrule
+Full & none & \ResAblFullHR & \ResAblFullASS & \ResAblFullConf & \ResAblFullMinutes & \ResAudCacheAblFull \\
+A1 & defense agent & \ResAblAOneHR & \ResAblAOneASS & \ResAblAOneConf & \ResAblAOneMinutes & \ResAudCacheAblAOne \\
+A2 & verifier (CCE) & \ResAblATwoHR & \ResAblATwoASS & \ResAblATwoConf & \ResAblATwoMinutes & \ResAudCacheAblATwo \\
+A3 & adaptive memory & \ResAblAThreeHR & \ResAblAThreeASS & \ResAblAThreeConf & \ResAblAThreeMinutes & \ResAudCacheAblAThree \\
+A4 & controller (one round) & \ResAblAFourHR & \ResAblAFourASS & \ResAblAFourConf & \ResAblAFourMinutes & \ResAudCacheAblAFour \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ════════════════════════════════════════════════════════════════════════════
+\section{Audit of the First Evaluation}\label{sec:audit}
+Taken at face value, the first evaluation says that the debate adds cost and no benefit. Before accepting that conclusion we went back through the saved result files, the run logs and the code. We did not repeat any experiment or change any result file. Where a question could not be answered from the files alone, we added a deterministic diagnostic that makes no call to the generator. The audit produced five findings.
+
+\subsection{The Verdict Cache Replaced a Third of the Debates}
+The first thing we noticed was a pattern in the benchmark run. \ResAudCacheBench\ of the \ResTestCases\ cases show the signature of a debate that never happened: a confidence of 0, a single round and no citation. They are exactly the \ResLexNoCiteAnswers\ answers recorded without a citation, and exactly the \ResLexRoundsOne\ debates recorded with one round. The logs of the ablation runs show the cause directly. In each variant with memory, between \ResAudCacheAblMin\ and \ResAudCacheAblMax\ questions were answered from the verdict cache, and in the variant without memory none were (Table~\ref{tab:ablation}).
+
+Our benchmark contains no repeated question, so every one of these cache hits returned the answer to a different question. The reason is that Legal-BERT was never trained for sentence similarity, and its embeddings of legal questions sit very close to one another. Of the \ResAudCollisionPairsTotal\ pairs of benchmark questions, \ResAudCollisionPairs\ exceed our threshold of 0.92, and \ResAudCollisionQuestions\ questions have an earlier question above it. Separating all of them would have required a threshold of \ResAudNoCollisionThreshold. We were able to reproduce each of the \ResAudCacheAblFull\ hits in the logged run of the full system from the question embeddings alone, and the two questions shared a target decision in \ResAudCacheSameTarget\ of them. A cache hit restored only the answer text, which is why the confidence stayed at zero and the citation list stayed empty.
+
+This single defect accounts for several of the results in Section~\ref{sec:first}: every answer without a citation, every ``one-round'' debate, \ResAudCacheBench\ of the \ResLexConfLow\ debates with a confidence at or below 0.20, and the recorded deficit in authority recall. It also explains what had looked like an effect of removing memory. Removing memory simply removed the skipped debates. Over the debates that actually took place, the mean confidence is \ResAudImpliedConfFull\ in the full system and \ResAudImpliedConfAThree\ without memory.
+
+\subsection{The Debated Cases Tell a Different Story}
+If we look only at the \ResAudDebated\ cases that were actually debated, the picture reverses. There \sys\ cited the target decision in \ResAudDebatedLexAR\% of cases, against \ResAudDebatedBaseAR\% for the baseline (interval of the difference [\ResAudDebatedARLow, \ResAudDebatedARHigh]\pp, \ResAudDebatedARP). We treat this number with caution. The subset is not a random sample, since a case is skipped precisely when its question lies close to an earlier one, so the figure is an indication and not an estimate. It was, however, the reason we decided to measure the debate again without the cache (Section~\ref{sec:postaudit}).
+
+\subsection{Two Measures Do Not Measure What They Name}
+Authority precision, as we had defined it, is simply authority recall divided by the number of citations. We checked that this identity holds for every case of both systems. The measure therefore drops whenever an answer cites more than one case, and it can never detect an incorrect citation. The deficit recorded for the debate reflects nothing more than the fact that it cites more cases per answer.
+
+Answer semantic similarity turned out to have almost no usable range. When we score the reference holding of a \emph{different} benchmark case with the same Legal-BERT embeddings, it obtains \ResAudSimFloor\ on average, and the question itself, returned as if it were the answer, obtains \ResAudSimQuestion. The recorded values of \ResLexASS\ and \ResBaseASS\ therefore sit in a narrow band that starts at \ResAudSimFloor, and simply restating the question scores about as well as answering it.
+
+\subsection{The Verifier Was Not Validated, and the Debate Depends on It}
+The support score of our first checker separates correct from swapped holdings with an AUC of only \ResStressAUC, and it rejects most correct citations (Section~\ref{sec:stress}). This matters because three other components act on its verdict. The judge may rely only on supported citations, so a correct citation that the checker rejects can never appear in the answer. The controller keeps a debate going while citation scores are weak, which is why all \ResAudDebatedAtMaxRounds\ debated cases of the benchmark run went to the maximum number of rounds. The risk index of the memory stores rejected citations as citations to avoid. On top of this, each round overwrites the citations and the citation report of the round before it. In the variant without memory, \ResAudAThreeSupportedAny\ of \ResAudAThreeDebates\ debates contained a supported citation in some round, but in \ResAudAThreeSupportLost\ of them no supported citation was left by the final round, which is the only one the judge reads.
+
+\subsection{The Protocol Could Not Support Its Conclusions}
+Finally, the protocol itself left little room for checking anything. Generation was sampled, and we had set no seed. The benchmark run saved one scorecard per case and the ablation saved one mean per variant. We kept no answers, citation lists or retrieved passages, so no result could be inspected afterwards. The baseline issued a different dense query from the debate (the question alone instead of the question with its jurisdiction) and read four passages of 300 characters, whereas the prosecutor reads eight of 500. In the first ablation run, the switch that disables the checker had not been declared in the state schema of the graph, and the framework silently dropped it. The A2 row of Table~\ref{tab:ablation} comes from the run we repeated after fixing this, and we keep the invalid result in the archive.
+
+% ════════════════════════════════════════════════════════════════════════════
+\section{Repairs}\label{sec:repairs}
+We made the repairs in two steps. The first step consists of four repairs. Each one addresses a specific finding of the audit, and we did not choose any of them for its effect on the benchmark scores.
+\begin{enumerate}
+\item \emph{Seeded, traced runs.} Question $i$ of a run with seed $s$ is generated with seed $100003\,s + i$. For every question we now save the retrieved passages, the parsed and the raw output of every agent in every round, the citation report of every round, the controller's decisions, the judge's output, and whether the cache answered. A run resumes after an interruption and never overwrites a saved case.
+\item \emph{Same-question verdict cache.} The cache answers only when the normalised question is the same, and it restores the citations and the confidence together with the answer (Section~\ref{sec:memory}). In the evaluation runs it is either switched off or, in the run that fills the memory for Section~\ref{sec:cachetest}, unable to answer because the questions are distinct. No debate was skipped in any post-audit run.
+\item \emph{Measures that state what they count.} The measures of Section~\ref{sec:postaudit} replace authority precision and Legal-BERT similarity. A skipped debate is treated as a category of its own and is never scored as an answer.
+\item \emph{Existence and support reported separately, behind a gate.} The checker of Section~\ref{sec:cce} now states whether a citation exists independently of whether its holding is supported. The support verdict steers the judge, the controller and the memory only if a support model has passed validation.
+\end{enumerate}
+We left the other defects found by the audit untouched in this first step: the risk index of the memory, the overwriting of citations and reports from round to round together with the judge's restriction to the last report, the continuation rule of the controller, and the Legal-BERT retriever. They are therefore part of what the runs of Section~\ref{sec:postaudit} measure. Those runs then told us which of these defects were worth repairing in a second step (Section~\ref{sec:remaining}).
+
+% ════════════════════════════════════════════════════════════════════════════
+\section{Evaluation of the Repaired System}\label{sec:postaudit}
+
+\subsection{Protocol}
+\emph{Configurations.} We run eight configurations on the \ResTestCases\ questions in this section and five more in Section~\ref{sec:remaining}. Two are baselines that differ only in context: four passages of 300 characters, as in the first evaluation, and eight passages of 500 characters, which is what the prosecutor receives. Both issue the same dense query as the debate. The \emph{first debate, cache off} is the system of the first evaluation with its original checker and with memory removed, so that no debate is skipped. It provides the measurement that the first evaluation could not. The \emph{repaired debate} uses the validated checker. Variants A1 to A4 each remove one component from the repaired debate. We ran the baselines and the first debate with three seeds. The repaired debate has two seeds and its variants one, because we stopped their remaining repeats once the second step of repairs had turned the repaired debate into an intermediate system. Every table states the number of seeds behind its values.
+
+\emph{Correction of the baseline's citations.} We ask the baseline to return its citations as a list of objects. In \ResParseBaseFourChanged\ of \ResParseBaseFourAnswers\ four-passage answers and in \ResParseBaseEightChanged\ of \ResParseBaseEightAnswers\ eight-passage answers, the model returned a list of plain strings instead. Our parser, which we had carried over from the first evaluation, kept only objects, so each of those answers was recorded as citing nothing. We found the error after all runs were complete, when we traced the surprisingly high share of eight-passage answers without a citation back to the raw outputs. Because every run saves the model's raw output, we could read the citations again from it without repeating a run, and we keep the files as originally saved. The correction raises the share of baseline answers that rest on the target from \ResParseBaseFourTargetAsSaved\% to \ResPaBaseFourTargetAnswer\% with four passages and from \ResParseBaseEightTargetAsSaved\% to \ResPaBaseEightTargetAnswer\% with eight. All baseline values reported after Table~\ref{tab:ablation} use the corrected reading. The baseline of the first evaluation (Table~\ref{tab:main}) was scored with the same parser and is understated by an amount we cannot determine, since its outputs were not saved. The debate agents wrote objects in every call we examined, so the debate values are unaffected.
+
+\emph{Measures.} We resolve every citation through the case catalog. \emph{Target cited by the answer} is 1 if a citation that the final answer rests on resolves to the target decision. For the debate these are the citations the judge relies on, and for the baseline they are the citations of its answer. \emph{Target cited by any agent} is 1 if any citation made by any agent in any round resolves to the target. We report the \emph{number of citations} next to these measures and never divide it into them. An \emph{answer on no existing authority} rests on no citation that resolves to a report. A \emph{citation to a non-existent case} names a case that is not in the catalog even though the cited volume is in the corpus. \emph{Support shown} is the share of checked citations of the final round that are labelled \textsc{supported}. \emph{Answer similarity} is the cosine similarity between sentence embeddings~\cite{sbert} of the answer and of the reference holding, computed with a model trained for sentence similarity (all-mpnet-base-v2~\cite{mpnet}). As reference points, the holding of a different case obtains \ResPaSimFloor\ on average and the question itself obtains \ResPaSimQuestion.
+
+\emph{Statistics.} All comparisons are paired by question. When a configuration has several seeds, the value of a question is its mean over the seeds. We report 95\% percentile intervals from $10^4$ bootstrap resamples of questions and $p$-values from a two-sided sign-flip permutation test with $10^4$ permutations. We call a difference significant only if $p < 0.05$ and the interval excludes zero. We apply no correction for multiple comparisons. The comparisons are few, and we report all of them.
+
+\subsection{Validation of the Support Model}\label{sec:validation}
+We split the labelled citations of the stress test (\ResStressCorrectN\ correct, \ResStressMisattrN\ with a swapped holding and \ResStressCaseholdN\ with a false holding) once, with a fixed seed, into a development half and a test half. The test half holds \ResGateTestSetCorrect, \ResGateTestSetSwapped\ and \ResGateTestSetFalse\ citations of the three kinds. We then scored \ResGateCandidates\ candidates: five entailment cross-encoders, each with windows of 450 characters and with whole passages as units, and the generator itself asked for a yes-or-no judgement on whole passages, each combined with three ways of selecting passages from the cited opinion. We fixed the selection rule before looking at any score. The candidate with the highest development AUC is selected, its threshold is the one that maximises the difference between true and false acceptance on the development half, and the gate opens only if that candidate reaches an AUC of at least \ResGateRequiredAUC\ on the test half.
+
+Table~\ref{tab:verifier} lists the best candidate of each model. The four cross-encoders trained on sentence-level inference data reach test AUCs between \ResGateOtherTestAUCMin\ and \ResGateOtherTestAUCMax, and the model and configuration of our first evaluation reach \ResGateFirstModelTestAUC. The rule selected a cross-encoder trained for long inputs~\cite{tasksource} that reads whole passages. Its development AUC is \ResGateDevAUC\ and its test AUC is \ResGateTestAUC\ (interval [\ResGateTestAUCLow, \ResGateTestAUCHigh]). On the test half it accepted \ResGateTestCorrect\ correct citations, \ResGateTestSwapped\ swapped holdings and \ResGateTestFalse\ false holdings. The gate therefore opened, with $\tau_g = \ResGateThreshold$. The generator used as a verifier reached the same development AUC, and the rule resolved the tie in favour of the cross-encoder, which had been scored first. We would not have adopted the generator in any case. The checker cannot yet load it as a support model, and this test cannot tell us whether its judgement on a landmark decision comes from the passage or from what the model already knows about the case.
+
+\emph{Near-miss holdings.} The swapped holdings in this test come from arbitrary other cases, which makes them relatively easy to reject. As a harder probe, which we ran after the gate was fixed and which had no influence on it, we paired each target decision with the reference holding of the \emph{most similar} other benchmark case. The validated model accepted \ResProbeCorrect\ of \ResProbeN\ correct holdings, \ResProbeUnrelated\ holdings of unrelated cases and \ResProbeNearMiss\ near-miss holdings (\ResProbeNearMissPct\%). The last figure is an upper bound on the error, because an opinion often restates the holding of a closely related case. It still shows that a \textsc{supported} verdict does not rule out a holding that really belongs to a neighbouring decision.
+
+\begin{table}[t]
+\caption{Validation of the support model: best candidate of each model by development area. Acceptance is on the test half (\ResGateTestSetCorrect\ correct, \ResGateTestSetSwapped\ swapped, \ResGateTestSetFalse\ false holdings). Bold: the candidate selected by the fixed rule.}\label{tab:verifier}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{2.4pt}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{2.35cm}>{\raggedright\arraybackslash}p{1.35cm}rrrrr@{}}
+\toprule
+Model & Units; passages & \shortstack{Dev.\\area} & \shortstack{Test\\area} & \shortstack{Correct\\acc.} & \shortstack{Swapped\\acc.} & \shortstack{False\\acc.} \\
+\midrule
+\ResRowsVerifier
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Retrieval}
+Table~\ref{tab:retrieval} reports, for each retriever on its own and for two fusions, how many of the \ResRetQuestions\ questions have a passage of the target opinion among the first one, four and eight results. The dense retriever of our system places the target among its four results for only \ResRetDenseTopFour\ questions (\ResRetDenseTopFourPct\%), whereas the lexical retriever does so for \ResRetLexicalTopFour\ (\ResRetLexicalTopFourPct\%). A general-purpose embedding model trained for retrieval~\cite{bge} reaches \ResRetBgeTopFour. In hindsight this is not surprising: Legal-BERT is a masked language model with no retrieval objective, yet it supplies half of the eight passages a debate receives. The deployed fusion contains the target among its eight passages for \ResRetSystemTopEight\ questions and ranks it first for \ResRetSystemRankOne; the best fusion we tested reaches \ResRetBestTopEight\ and \ResRetBestRankOne. Since we picked that fusion on the same questions, the finding here is the ranking of the configurations and not its best number. We did not change retrieval for the repaired debate of this section, so for \ResRetSystemMissEight\ of the \ResRetQuestions\ questions the target opinion is missing from the first-round passages.
+
+\begin{table}[t]
+\caption{Retrieval: number of the \ResRetQuestions\ questions with a passage of the target opinion among the first $k$ results}\label{tab:retrieval}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{5.2cm}rrr@{}}
+\toprule
+Retriever & $k=1$ & $k=4$ & $k=8$ \\
+\midrule
+\ResRowsRetrieval
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Debate Against the Baselines}
+Table~\ref{tab:pamain} and Fig.~\ref{fig:pamain} give the measures, and Table~\ref{tab:padiff} gives the paired differences.
+
+\emph{The first debate without the cache.} Once no debate is skipped, the first system cites the target decision somewhere in the debate in \ResPaOldTargetAny\% of cases, compared with \ResPaBaseFourTargetAny\% for the four-passage baseline (\cmp{OldBaseFour}{TargetAny}{\pp}). Its answers, however, rest on the target in only \ResPaOldTargetAnswer\% of cases (\cmp{OldBaseFour}{TargetAnswer}{\pp}), and \ResPaOldNoAuthority\% of them rest on no existing authority at all. The gap of \ResPaOldFoundNotUsed\ percentage points between what the agents cite and what the answer uses is the effect of the first checker on the judge.
+
+\emph{The repaired debate.} With the validated checker, the answers rest on the target in \ResPaFullTargetAnswer\% of cases (\cmp{FullOld}{TargetAnswer}{\pp}), and the share of answers on no existing authority falls to \ResPaFullNoAuthority\% (\cmp{FullOld}{NoAuthority}{\pp}). How often the target is cited somewhere in the debate does not change (\ResPaFullTargetAny\% against \ResPaOldTargetAny\%, \ResCmpFullOldTargetAnyP). In other words, the repair changes what the judge is allowed to use, not what the agents find.
+
+\emph{Against the baselines.} The repair does not carry the debate past a single agent. In answers resting on the target, the difference between the repaired debate and the four-passage baseline is \cmpword{FullBaseFour}{TargetAnswer} (\cmp{FullBaseFour}{TargetAnswer}{\pp}). Against the eight-passage baseline, which reads the same context as the prosecutor, the debate is behind (\cmp{FullBaseEight}{TargetAnswer}{\pp}). The two baselines do not differ significantly from each other (\cmp{BaseEightBaseFour}{TargetAnswer}{\pp}, eight passages minus four). The debate also leaves more answers on no existing authority than the four-passage baseline (\cmp{FullBaseFour}{NoAuthority}{\pp}), and the answers of both debate configurations are less similar to the reference holding than those of both baselines (repaired debate against four passages: \cmp{FullBaseFour}{Sim}{}). We note that the similarity measure remains coarse, since a restatement of the question would score \ResPaSimQuestion. What the debate does retain is breadth. Its agents cite the target somewhere more often than the four-passage baseline does (\cmp{FullBaseFour}{TargetAny}{\pp}).
+
+\emph{Existence and cost.} No citation that a debate answer rests on names a non-existent case. The agents of the first debate did cite \ResPaOldNotFound\ such cases among \ResPaOldCitationsMade\ citations, but the checker kept them out of the answers. The four-passage baseline cited none. The eight-passage baseline cited \ResPaBaseEightNotFoundAnswerCount\ among \ResPaBaseEightAnswerCitations, and all of them appear in its answers (Table~\ref{tab:pamain}). In the final round of the repaired debate, \ResPaFullSupportShown\% of the \ResPaFullSupportChecked\ checked citations are labelled \textsc{supported}. A repaired debate takes \ResPaFullSecondsPerCase\,s per question, against \ResPaBaseFourSecondsPerCase\,s for a baseline, which is about \ResPaFullTimeRatio\ times as long, and every debate ran the maximum number of rounds (mean \ResPaFullRounds).
+
+\begin{table}[t]
+\caption{Post-audit runs on \ResTestCases\ questions, earlier retrieval: mean over the seeds of each configuration. Baseline citations as read from the raw outputs. ``No authority'' abbreviates no existing authority.}\label{tab:pamain}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{2.6pt}
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+Measure & \shortstack{Baseline\\4 pass.} & \shortstack{Baseline\\8 pass.} & \shortstack{First\\debate,\\cache off} & \shortstack{Repaired\\debate} \\
+\midrule
+Seeds completed & \ResPaBaseFourSeeds & \ResPaBaseEightSeeds & \ResPaOldSeeds & \ResPaFullSeeds \\
+Target cited by the answer (\%) & \ResPaBaseFourTargetAnswer & \ResPaBaseEightTargetAnswer & \ResPaOldTargetAnswer & \ResPaFullTargetAnswer \\
+Target cited by any agent (\%) & \ResPaBaseFourTargetAny & \ResPaBaseEightTargetAny & \ResPaOldTargetAny & \ResPaFullTargetAny \\
+Citations the answer rests on & \ResPaBaseFourCitesAnswer & \ResPaBaseEightCitesAnswer & \ResPaOldCitesAnswer & \ResPaFullCitesAnswer \\
+Citations made by all agents & \ResPaBaseFourCitesAll & \ResPaBaseEightCitesAll & \ResPaOldCitesAll & \ResPaFullCitesAll \\
+Answers on no authority (\%) & \ResPaBaseFourNoAuthority & \ResPaBaseEightNoAuthority & \ResPaOldNoAuthority & \ResPaFullNoAuthority \\
+Citations to non-existent cases & \ResPaBaseFourNotFound & \ResPaBaseEightNotFound & \ResPaOldNotFound & \ResPaFullNotFound \\
+\quad of these, in a final answer & \ResPaBaseFourNotFoundAnswer & \ResPaBaseEightNotFoundAnswer & \ResPaOldNotFoundAnswer & \ResPaFullNotFoundAnswer \\
+\quad of citations made, all seeds & \ResPaBaseFourCitationsMade & \ResPaBaseEightCitationsMade & \ResPaOldCitationsMade & \ResPaFullCitationsMade \\
+Answer similarity & \ResPaBaseFourSim & \ResPaBaseEightSim & \ResPaOldSim & \ResPaFullSim \\
+Support shown (\%) & \ResPaBaseFourSupportShown & \ResPaBaseEightSupportShown & \ResPaOldSupportShown$^{\dagger}$ & \ResPaFullSupportShown \\
+Mean confidence & \ResPaBaseFourConf & \ResPaBaseEightConf & \ResPaOldConf & \ResPaFullConf \\
+Mean rounds & \ResPaBaseFourRounds & \ResPaBaseEightRounds & \ResPaOldRounds & \ResPaFullRounds \\
+Seconds per question & \ResPaBaseFourSecondsPerCase & \ResPaBaseEightSecondsPerCase & \ResPaOldSecondsPerCase & \ResPaFullSecondsPerCase \\
+\bottomrule
+\multicolumn{5}{@{}l}{$^{\dagger}$ verdict of the first, unvalidated checker.}
+\end{tabular}
+\end{table}
+
+\begin{table}[t]
+\caption{Paired differences of the repaired debate from the other configurations (percentage points for the first three measures of each block)}\label{tab:padiff}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3.0pt}
+\begin{tabular}{@{}lrll@{}}
+\toprule
+Measure & $\Delta$ & 95\% interval & Test \\
+\midrule
+\multicolumn{4}{@{}l}{\emph{Repaired debate minus baseline with 4 passages}} \\
+\cmprow{Target cited by the answer}{FullBaseFour}{TargetAnswer}
+\cmprow{Target cited by any agent}{FullBaseFour}{TargetAny}
+\cmprow{Answers on no existing authority}{FullBaseFour}{NoAuthority}
+\cmprow{Answer similarity}{FullBaseFour}{Sim}
+\midrule
+\multicolumn{4}{@{}l}{\emph{Repaired debate minus baseline with 8 passages}} \\
+\cmprow{Target cited by the answer}{FullBaseEight}{TargetAnswer}
+\cmprow{Target cited by any agent}{FullBaseEight}{TargetAny}
+\cmprow{Answers on no existing authority}{FullBaseEight}{NoAuthority}
+\cmprow{Answer similarity}{FullBaseEight}{Sim}
+\midrule
+\multicolumn{4}{@{}l}{\emph{Repaired debate minus first debate, cache off}} \\
+\cmprow{Target cited by the answer}{FullOld}{TargetAnswer}
+\cmprow{Target cited by any agent}{FullOld}{TargetAny}
+\cmprow{Answers on no existing authority}{FullOld}{NoAuthority}
+\cmprow{Answer similarity}{FullOld}{Sim}
+\bottomrule
+\multicolumn{4}{@{}l}{$^{\ast}$ $p < 0.05$ and the interval excludes zero.}
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\input{figures/benchmark.tex}
+\caption{Share of questions for which the target decision is cited by the final answer and by any agent, for the configurations on the earlier retrieval (upper four) and, marked $\star$, on the retrieval trained for retrieval (Section~\ref{sec:remaining}). For a baseline the two coincide. Every debate finds the target more often than its answer uses it.}\label{fig:pamain}
+\end{figure}
+
+\subsection{Ablation of the Repaired System}
+Table~\ref{tab:paablation} and Fig.~\ref{fig:paablation} report the variants. In answers resting on the target, none of them differs significantly from the full system.
+
+\emph{Defense (A1).} Without the defense, the share of answers resting on the target is the highest of all variants (\ResPaAOneTargetAnswer\% against \ResPaFullTargetAnswer\%; \cmp{FullAOne}{TargetAnswer}{\pp}, full system minus variant). The run also takes \ResPaAOneMinutes\ instead of \ResPaFullMinutes\ minutes, because the controller then ends a debate after \ResPaAOneRounds\ rounds on average. We could not measure any benefit of the defense, although none of our measures asks whether an unsupported claim was challenged.
+
+\emph{Checker (A2).} Without the checker, the judge relies on its own citations and reports its own confidence (\ResPaATwoConf\ against \ResPaFullConf). With the checker, \ResPaFullNoAuthority\% of the answers rest on no existing authority, against \ResPaATwoNoAuthority\% without it (\cmp{FullATwo}{NoAuthority}{\pp}; \cmpword{FullATwo}{NoAuthority}), because the judge loses the citations whose holding the checker does not find shown. Of the \ResPaATwoCitationsMade\ citations made by the agents of this variant, \ResPaATwoNotFound\ name a non-existent case. The first debate, where a checker is active, produced \ResPaOldNotFound\ among \ResPaOldCitationsMade, so we cannot attribute these citations to the missing checker. In neither configuration did such a citation reach an answer.
+
+\emph{Memory (A3).} Removing the memory changes no measure significantly. We expected this under the repaired cache rule, which cannot answer distinct questions. What is left of the memory in the full system is the risk index.
+
+\emph{Later rounds (A4).} A debate limited to one round cites the target somewhere in \ResPaAFourTargetAny\% of cases, against \ResPaFullTargetAny\% for the full system (\ResCmpFullAFourTargetAnyP, \cmpword{FullAFour}{TargetAny}), yet its answers rest on the target just as often (\cmp{FullAFour}{TargetAnswer}{\pp}), in \ResPaAFourMinutes\ instead of \ResPaFullMinutes\ minutes. Whatever the later rounds find does not reach the answer. This is consistent with the overwriting of citations described in Section~\ref{sec:audit}.
+
+\begin{table}[t]
+\caption{Ablation of the repaired system (full system: \ResPaFullSeedsWord\ seeds; each variant: \ResPaAOneSeedsWord\ seed). An asterisk marks a significant paired difference from the full system.}\label{tab:paablation}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{2.4pt}
+\begin{tabular}{@{}llrrrrrr@{}}
+\toprule
+ & Removed & \shortstack{Target\\in the\\answer\\(\%)} & \shortstack{Target\\by any\\agent\\(\%)} & \shortstack{No\\existing\\authority\\(\%)} & \shortstack{Confi-\\dence} & Rounds & \shortstack{Time\\(min)} \\
+\midrule
+Full & none & \ResPaFullTargetAnswer & \ResPaFullTargetAny & \ResPaFullNoAuthority & \ResPaFullConf & \ResPaFullRounds & \ResPaFullMinutes \\
+A1 & defense & \ResPaAOneTargetAnswer\ResCmpFullAOneTargetAnswerMark & \ResPaAOneTargetAny\ResCmpFullAOneTargetAnyMark & \ResPaAOneNoAuthority\ResCmpFullAOneNoAuthorityMark & \ResPaAOneConf & \ResPaAOneRounds & \ResPaAOneMinutes \\
+A2 & checker & \ResPaATwoTargetAnswer\ResCmpFullATwoTargetAnswerMark & \ResPaATwoTargetAny\ResCmpFullATwoTargetAnyMark & \ResPaATwoNoAuthority\ResCmpFullATwoNoAuthorityMark & \ResPaATwoConf & \ResPaATwoRounds & \ResPaATwoMinutes \\
+A3 & memory & \ResPaAThreeTargetAnswer\ResCmpFullAThreeTargetAnswerMark & \ResPaAThreeTargetAny\ResCmpFullAThreeTargetAnyMark & \ResPaAThreeNoAuthority\ResCmpFullAThreeNoAuthorityMark & \ResPaAThreeConf & \ResPaAThreeRounds & \ResPaAThreeMinutes \\
+A4 & later rounds & \ResPaAFourTargetAnswer\ResCmpFullAFourTargetAnswerMark & \ResPaAFourTargetAny\ResCmpFullAFourTargetAnyMark & \ResPaAFourNoAuthority\ResCmpFullAFourNoAuthorityMark & \ResPaAFourConf & \ResPaAFourRounds & \ResPaAFourMinutes \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure*}[t]
+\centering
+\input{figures/ablation.tex}
+\caption{Ablation of the repaired system. Each panel shows one measure for the full system and for the four variants that each remove one component (A1 defense, A2 citation checker, A3 memory, A4 rounds after the first).}\label{fig:paablation}
+\end{figure*}
+
+\subsection{Verdict Cache on a Workload With Repeats}\label{sec:cachetest}
+The benchmark contains no repeated question, so it cannot show what a cache is for. We therefore built a workload with repeats. It consists of one pass of the repaired system, which stored \ResMemStored\ verdicts, followed by exact repeats of all questions, by variants that differ in case, punctuation and spacing, and by paraphrases written by the generator. Table~\ref{tab:memory} applies both cache rules to it. On the first pass the similarity rule returns a stored answer for \ResMemFirstPassOldWrong\ of \ResMemFirstPassQueries\ distinct questions, and every one of those answers belongs to another question. The same-question rule returns none on the first pass, serves all \ResMemRepeatNewCorrect\ stored verdicts on exact repeats and on format variants, and returns no wrong answer in any workload. It does not recognise paraphrases, which is the price of the rule. We could not measure how often a rejected citation recurs in a later session, because no citation failed the existence check in the first pass and so there was nothing to recur.
+
+\begin{table}[t]
+\caption{Verdict cache: hits of the two rules on four workloads. A hit is correct only if the stored answer was written for the same benchmark case.}\label{tab:memory}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{2.6pt}
+\begin{tabular}{@{}lrrrrrrr@{}}
+\toprule
+ & & \multicolumn{3}{c}{Cosine $>0.92$} & \multicolumn{3}{c}{Same question} \\
+\cmidrule(lr){3-5}\cmidrule(l){6-8}
+Workload & Queries & Hits & Right & Wrong & Hits & Right & Wrong \\
+\midrule
+\ResRowsMemory
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ════════════════════════════════════════════════════════════════════════════
+\section{Remaining Repairs}\label{sec:remaining}
+The repairs of Section~\ref{sec:repairs} left several defects of the audit in place. The traces saved by the repaired system allowed us to decide which of them mattered before making any further run.
+
+\subsection{Evidence From the Traces}
+In the first seed of the repaired debate, \ResLossLost\ of \ResLossCases\ debates cited the target decision and still returned an answer that does not rest on it. In \ResLossSupportedEarlierOnly\ of these, the target had been labelled \textsc{supported} in an earlier round but was no longer supported, or no longer cited, in the last round, which is the only round the judge reads. In \ResLossSupportedLastNotUsed\ it was supported in the last round and the judge did not list it, and in \ResLossNeverSupported\ it was never supported. Independently of the target, \ResLossAnswersEmptyAlthoughSupported\ answers rest on no citation even though the last round contained a supported one. We see two causes. First, the judge's instructions set score thresholds (0.75 for a citation it may rely on) that do not correspond to the checker's verdicts: \ResLossSupportedBelowJudgeThreshold\% of the \ResLossSupportedCitations\ citations labelled \textsc{supported} have a score below that value. Second, the controller never stops. The challenge strength that the defense reports for itself exceeded the threshold in \ResLossChallengeAboveThreshold\ of \ResLossRounds\ rounds, so every debate ran to the maximum and overwrote its own earlier results twice.
+
+The risk index of the memory is a different matter. It handed a list to \ResLossAvoidDebates\ debates, but the lists contained only \ResLossAvoidNames\ distinct names in total, and the target of the question appeared on them in \ResLossAvoidOwnTarget\ cases. Removing the memory changed no measure (Section~\ref{sec:postaudit}), so we left it as it was. Retrieval, finally, limits every configuration from the outside: for \ResRetSystemMissEight\ of \ResRetQuestions\ questions the target opinion is not among the first-round passages.
+
+\subsection{Ledger Protocol}
+The second step of repairs changes how citations are handled across rounds.
+
+\emph{Ledger.} For every decision cited in any round, a ledger keeps the best verdict it has received together with the passage that supported it. Entries are keyed by the report the citation resolves to, so two spellings of the same decision share one entry. A later, worse verdict never replaces an earlier, better one.
+
+\emph{Judge.} The judge now reads the ledger of all rounds. Each verdict is given in words, each supported decision comes with its supporting passage, and the instructions refer to these verdicts instead of score thresholds. The program still decides what an answer rests on: a decision named by the judge counts only if the ledger holds it as \textsc{supported}. If the judge relied on a decision whose holding was not shown, we report that decision as uncertain instead of dropping it. A name written by the judge is matched to a ledger entry only when both parties agree. The earlier rule accepted any two shared words, which meant that one ``United States v.'' decision could stand in for another.
+
+\emph{Controller.} A further round starts only if there is no supported citation yet, a gap remains, and the last round produced a new passage or a newly supported citation. The mean and minimum scores no longer force a round once a supported citation exists, and the self-reported challenge strength is no longer sufficient on its own:
+\begin{equation}
+\begin{aligned}
+\text{continue} \iff\; & t < T_{\max} \;\land\; \lnot\,\mathrm{concede}_t \;\land\; |G_t| \geq 1 \\
+& \land\; \lnot\,\mathrm{supported}_t \;\land\; \mathrm{new}_t .
+\end{aligned}
+\end{equation}
+
+The audit had proposed letting the judge rely on any citation that exists and merely annotating missing support. We kept the stricter rule, so that an answer rests on supported citations only and the measure \emph{target cited by the answer} keeps the same meaning across all configurations.
+
+\subsection{Retrieval Trained for Retrieval}
+We replaced the dense retriever with an embedding model trained for retrieval (bge-base-en-v1.5~\cite{bge}), applied to the question alone, and we now compute BM25 over word tokens instead of whitespace tokens. As before, the first eight results of each ranking are fused. At most two passages of one decision are kept, and a list shortened by that limit is filled from deeper results under the same limit. We fixed the depth and the limit on design grounds and did not select them from the rows of Table~\ref{tab:retrieval}. The Legal-BERT index remains in place, because the support model was validated with it and the checker continues to use it. Table~\ref{tab:standard} gives the retrieval measures of both retrievers. Since a better retriever also helps a single agent, we ran the baselines again on the new retriever, and it is those baselines that the final system is compared with.
+
+\subsection{Results of the Final System}
+Table~\ref{tab:final} reports the final system, which carries both repairs, the two baselines on the same retriever, and two runs that carry one repair each. Table~\ref{tab:finaldiff} gives the paired differences, and Fig.~\ref{fig:pamain} shows all configurations side by side.
+
+\emph{Retrieval.} The new retriever places a passage of the target opinion among its eight passages for \ResStdFinalHitEight\% of the questions (\ResStdFullHitEight\% before) and at the first rank for \ResStdFinalHitOne\% (\ResStdFullHitOne\% before). On its own, this lifts the four-passage baseline from \ResPaBaseFourTargetAnswer\% to \ResPaBaseFourRTargetAnswer\% of answers resting on the target (\cmp{BaseFourRBaseFour}{TargetAnswer}{\pp}).
+
+\emph{The final debate.} The answers of the final system rest on the target in \ResPaFinalTargetAnswer\% of cases (\ResPaFinalTargetAnswerMin\% to \ResPaFinalTargetAnswerMax\% across the three seeds). This is no different from the repaired debate of Section~\ref{sec:postaudit} (\cmp{FinalFull}{TargetAnswer}{\pp}), and it is below both baselines on the same retriever: the four-passage baseline (\cmp{FinalBaseFourR}{TargetAnswer}{\pp}) and the eight-passage baseline (\cmp{FinalBaseEightR}{TargetAnswer}{\pp}). The agents cite the target somewhere in \ResPaFinalTargetAny\% of the debates, which is no longer more than a single agent cites (\cmp{FinalBaseFourR}{TargetAny}{\pp}). What the second step of repairs does deliver is a lower cost. A debate now ends after \ResPaFinalRounds\ rounds on average and takes \ResPaFinalSecondsPerCase\,s instead of \ResPaFullSecondsPerCase\,s, with an outcome that is statistically unchanged.
+
+\emph{Attribution.} To see what each repair contributes, we ran each one alone. With the ledger protocol alone, on the earlier retriever, the answers rest on the target in \ResPaLedgerOnlyTargetAnswer\% of cases (\cmp{LedgerOnlyFull}{TargetAnswer}{\pp} against the repaired debate; \cmpword{LedgerOnlyFull}{TargetAnswer}). The target is cited somewhere less often (\ResPaLedgerOnlyTargetAny\%; \cmp{LedgerOnlyFull}{TargetAny}{\pp}), because two rounds of search are no longer run. With the new retriever alone, under the earlier protocol, the agents cite the target in \ResPaRetrievalOnlyTargetAny\% of the debates (\cmp{RetrievalOnlyFull}{TargetAny}{\pp}), while the answers rest on it in \ResPaRetrievalOnlyTargetAnswer\% (\cmp{RetrievalOnlyFull}{TargetAnswer}{\pp}; \cmpword{RetrievalOnlyFull}{TargetAnswer}). Better retrieval reaches the agents, but it does not reach the answer.
+
+\emph{Where the loss occurs now.} Across the \ResFinalLossCases\ debates of the final system, an agent cites the target in \ResFinalLossCited\ and the answer rests on it in \ResFinalLossInAnswer. That leaves \ResFinalLossLost\ debates in which the target was cited and then lost. In \ResFinalLossLostSupported\ of them the ledger held the target as \textsc{supported}; the judge relied on a different supported decision in \ResFinalLossLostSupportedOtherCase\ of those and on none in \ResFinalLossLostSupportedNothing. In the remaining \ResFinalLossLostNotSupported, the passages read did not show the holding for which the agent had cited the target. On average a ledger holds \ResFinalLossSupportedPerDebate\ supported decisions per debate, and \ResFinalLossEmptyAlthoughSupported\ answers rest on nothing although one was available. The loss has therefore moved. It no longer comes from the bookkeeping, which the ledger repaired, but from the choice the judge makes among supported decisions and from the holdings that agents attach to the right case.
+
+\begin{table}[t]
+\caption{Second step of repairs, on the retrieval trained for retrieval unless stated: mean over the seeds of each configuration}\label{tab:final}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{2.3pt}
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+Measure & \shortstack{Base-\\line\\4 pass.} & \shortstack{Base-\\line\\8 pass.} & \shortstack{Ledger\\only$^{\ddagger}$} & \shortstack{Retrie-\\val\\only} & \shortstack{Final\\debate} \\
+\midrule
+Seeds & \ResPaBaseFourRSeeds & \ResPaBaseEightRSeeds & \ResPaLedgerOnlySeeds & \ResPaRetrievalOnlySeeds & \ResPaFinalSeeds \\
+Target cited by the answer (\%) & \ResPaBaseFourRTargetAnswer & \ResPaBaseEightRTargetAnswer & \ResPaLedgerOnlyTargetAnswer & \ResPaRetrievalOnlyTargetAnswer & \ResPaFinalTargetAnswer \\
+Target cited by any agent (\%) & \ResPaBaseFourRTargetAny & \ResPaBaseEightRTargetAny & \ResPaLedgerOnlyTargetAny & \ResPaRetrievalOnlyTargetAny & \ResPaFinalTargetAny \\
+Citations the answer rests on & \ResPaBaseFourRCitesAnswer & \ResPaBaseEightRCitesAnswer & \ResPaLedgerOnlyCitesAnswer & \ResPaRetrievalOnlyCitesAnswer & \ResPaFinalCitesAnswer \\
+Answers on no authority (\%) & \ResPaBaseFourRNoAuthority & \ResPaBaseEightRNoAuthority & \ResPaLedgerOnlyNoAuthority & \ResPaRetrievalOnlyNoAuthority & \ResPaFinalNoAuthority \\
+Non-existent cases in answers & \ResPaBaseFourRNotFoundAnswer & \ResPaBaseEightRNotFoundAnswer & \ResPaLedgerOnlyNotFoundAnswer & \ResPaRetrievalOnlyNotFoundAnswer & \ResPaFinalNotFoundAnswer \\
+Answer similarity & \ResPaBaseFourRSim & \ResPaBaseEightRSim & \ResPaLedgerOnlySim & \ResPaRetrievalOnlySim & \ResPaFinalSim \\
+Mean confidence & \ResPaBaseFourRConf & \ResPaBaseEightRConf & \ResPaLedgerOnlyConf & \ResPaRetrievalOnlyConf & \ResPaFinalConf \\
+Mean rounds & \ResPaBaseFourRRounds & \ResPaBaseEightRRounds & \ResPaLedgerOnlyRounds & \ResPaRetrievalOnlyRounds & \ResPaFinalRounds \\
+Seconds per question & \ResPaBaseFourRSecondsPerCase & \ResPaBaseEightRSecondsPerCase & \ResPaLedgerOnlySecondsPerCase & \ResPaRetrievalOnlySecondsPerCase & \ResPaFinalSecondsPerCase \\
+\bottomrule
+\multicolumn{6}{@{}l}{$^{\ddagger}$ on the earlier retrieval.}
+\end{tabular}
+\end{table}
+
+\begin{table}[t]
+\caption{Paired differences of the final debate from the other configurations (percentage points for the first three measures of each block)}\label{tab:finaldiff}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3.0pt}
+\begin{tabular}{@{}lrll@{}}
+\toprule
+Measure & $\Delta$ & 95\% interval & Test \\
+\midrule
+\multicolumn{4}{@{}l}{\emph{Final debate minus baseline with 4 passages, same retrieval}} \\
+\cmprow{Target cited by the answer}{FinalBaseFourR}{TargetAnswer}
+\cmprow{Target cited by any agent}{FinalBaseFourR}{TargetAny}
+\cmprow{Answers on no existing authority}{FinalBaseFourR}{NoAuthority}
+\cmprow{Answer similarity}{FinalBaseFourR}{Sim}
+\midrule
+\multicolumn{4}{@{}l}{\emph{Final debate minus baseline with 8 passages, same retrieval}} \\
+\cmprow{Target cited by the answer}{FinalBaseEightR}{TargetAnswer}
+\cmprow{Target cited by any agent}{FinalBaseEightR}{TargetAny}
+\cmprow{Answers on no existing authority}{FinalBaseEightR}{NoAuthority}
+\cmprow{Answer similarity}{FinalBaseEightR}{Sim}
+\midrule
+\multicolumn{4}{@{}l}{\emph{Final debate minus repaired debate}} \\
+\cmprow{Target cited by the answer}{FinalFull}{TargetAnswer}
+\cmprow{Target cited by any agent}{FinalFull}{TargetAny}
+\cmprow{Answers on no existing authority}{FinalFull}{NoAuthority}
+\cmprow{Answer similarity}{FinalFull}{Sim}
+\bottomrule
+\multicolumn{4}{@{}l}{$^{\ast}$ $p < 0.05$ and the interval excludes zero.}
+\end{tabular}
+\end{table}
+
+% ════════════════════════════════════════════════════════════════════════════
+\section{Standard Measures and Comparison With Related Work}\label{sec:comparison}
+We designed the measures used so far to state exactly what our system does. To set the results beside other work, we also scored every run with measures that other studies report, computed in the same way for the baseline and for the debate from the saved answers.
+
+\subsection{Measures}
+\emph{Retrieval.} Hit@$k$ is the share of questions for which a passage of the target opinion is among the first $k$ passages of the first retrieval; with one relevant opinion per question it equals Recall@$k$. MRR is the mean reciprocal rank of the first such passage among eight.
+
+\emph{Fabricated citations.} Following the existence test of Dahl \emph{et al.}~\cite{dahl2024}, the share of citations, and of answers, that name a case which does not exist.
+
+\emph{Citation recall and precision.} We apply the definitions of ALCE~\cite{alce} to case citations. Recall is the share of the sentences of the final answer that at least one cited opinion supports. Precision is the share of citations that support at least one sentence of the answer. Support is judged by the support model that passed the validation of Section~\ref{sec:validation}, at its validated threshold, on the three passages of the cited opinion closest to the sentence. Citations to real decisions outside the corpus cannot be checked, and we leave them out of precision.
+
+\emph{Grounding outcome.} Following the classification of Magesh \emph{et al.}~\cite{magesh2025}, we call an answer \emph{grounded} if it cites at least one authority and every checkable citation exists and supports one of its sentences, \emph{misgrounded} if it cites a case that does not exist or that supports none of its sentences, and \emph{without authority} otherwise. The classification is automatic and says nothing about whether the answer is legally correct.
+
+\emph{Answer overlap.} ROUGE-L, BERTScore (roberta-large) and token F1 of the final answer against the reference holding. \emph{Authority accuracy} is the share of answers that rest on the target decision.
+
+\subsection{Results}
+Table~\ref{tab:standard} reports the seven main configurations, and Fig.~\ref{fig:standard} shows the four measures of authority and grounding for the configurations on the new retriever. On the same retriever, the final debate trails the four-passage baseline in authority accuracy (\ResStdFinalAuthorityAccuracy\% against \ResStdBaseFourRAuthorityAccuracy\%), citation precision (\ResStdFinalCitationPrecision\% against \ResStdBaseFourRCitationPrecision\%), citation recall (\ResStdFinalCitationRecall\% against \ResStdBaseFourRCitationRecall\%), grounded answers (\ResStdFinalGrounded\% against \ResStdBaseFourRGrounded\%; \ResStdCmpFinalBaseFourRGroundedDiff\pp, \ResStdCmpFinalBaseFourRGroundedP), ROUGE-L (\ResStdFinalRougeL\ against \ResStdBaseFourRRougeL; \ResStdCmpFinalBaseFourRRougeLP) and BERTScore (\ResStdFinalBertScore\ against \ResStdBaseFourRBertScore; \ResStdCmpFinalBaseFourRBertScoreP). The lower citation precision is worth noting, because every citation a debate answer rests on had already been labelled \textsc{supported}. The explanation is that the checker verifies the holding an agent asserted, whereas the answer the judge writes afterwards is a different text.
+
+Against the debate first evaluated, the final debate has a much higher authority accuracy (\ResStdCmpFinalOldAuthorityAccuracyDiff\pp, \ResStdCmpFinalOldAuthorityAccuracyP) and more grounded answers (\ResStdCmpFinalOldGroundedDiff\pp, \ResStdCmpFinalOldGroundedP). It also has more misgrounded answers (\ResStdCmpFinalOldMisgroundedDiff\pp), simply because answers that used to cite nothing now cite something. The one measure on which a debate is ahead of a single agent is existence. No answer of any debate cites a non-existent case, whereas \ResStdBaseEightRAnswersFabricated\% of the eight-passage baseline answers on the same retriever do (\ResStdBaseEightRFabricatedCount\ of \ResStdBaseEightRCitations\ citations). With so few events, however, the difference is \ResStdCmpFinalBaseEightRAnswersFabricatedWord\ (\ResStdCmpFinalBaseEightRAnswersFabricatedP).
+
+\begin{table*}[t]
+\caption{Standard measures, computed in the same way for every configuration (mean over seeds). Support is judged by the validated support model. Rates in per cent.}\label{tab:standard}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{@{}lrrrrrrr@{}}
+\toprule
+ & \multicolumn{4}{c}{Earlier retrieval (Legal-BERT + BM25)} & \multicolumn{3}{c}{Retrieval trained for retrieval} \\
+\cmidrule(lr){2-5}\cmidrule(l){6-8}
+Measure & \shortstack{Baseline\\4 passages} & \shortstack{Baseline\\8 passages} & \shortstack{First debate,\\cache off} & \shortstack{Repaired\\debate} & \shortstack{Baseline\\4 passages} & \shortstack{Baseline\\8 passages} & \shortstack{Final\\debate} \\
+\midrule
+\ResRowsStandard
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\begin{figure}[t]
+\centering
+\input{figures/standard.tex}
+\caption{Standard measures of authority and grounding on the retrieval trained for retrieval. The single agent is ahead of the final debate on all four; exact values are in Table~\ref{tab:standard}.}\label{fig:standard}
+\end{figure}
+
+\subsection{Comparison With Results Reported in Related Work}
+Table~\ref{tab:reported} places our results next to the figures reported by the most closely related studies. The entries are not directly comparable. Each study uses its own task, data, model and definition of error, and we quote the values as the authors report them. Four observations can still be made.
+
+\emph{Hallucination rates.} General-purpose models hallucinate in 58\% to 88\% of verifiable questions about federal cases~\cite{dahl2024}, and commercial retrieval-augmented research tools do so in 17\% to 33\% of queries~\cite{magesh2025}. In our runs, fabricated case citations are rare in every configuration (at most \ResStdBaseEightRCitationsFabricated\% of citations) and absent from the answers of the debates. We attribute this mainly to retrieval grounding on a closed corpus, and only to a small extent to the debate. The measure closer to that of Magesh \emph{et al.}, who count misgrounded statements, is our share of misgrounded answers: \ResStdFinalMisgrounded\% for the final debate and \ResStdBaseFourRMisgrounded\% for the four-passage baseline. Both are near or above the upper end of the range those authors report for commercial tools, although our definition is automatic and counts every citation that supports no sentence of the answer.
+
+\emph{Citation quality.} Gao \emph{et al.} report that even the best systems they evaluate lack complete citation support for half of their answers on one of their datasets~\cite{alce}. Under our adapted definitions, a cited opinion supports \ResStdBaseFourRCitationRecall\% of the answer sentences of the baseline and \ResStdFinalCitationRecall\% of those of the final debate.
+
+\emph{Verification.} HalluGraph reports an AUC of 0.979 on structured control documents and 0.89 on generative legal tasks for detecting unfaithful output~\cite{hallugraph}. Our first checker reached \ResStressAUC. The validated support model reaches \ResGateTestAUC\ on held-out citations, but on a test whose incorrect holdings come from unrelated cases, and it still accepts \ResProbeNearMissPct\% of near-miss holdings.
+
+\emph{Gains from debate.} PROClaim reports a gain of 10.0 percentage points in accuracy over standard multi-agent debate on claim verification~\cite{proclaim}, AgentCourt a 12.1\% improvement of its evolved lawyer agents~\cite{agentcourt}, and ChatLaw and LRAS report gains over single-model baselines~\cite{chatlaw,lras}. We obtained no such gain. On the same retriever, the authority accuracy of the final debate differs from that of its single-agent baseline by \ResCmpFinalBaseFourRTargetAnswerDiff\pp.
+
+\begin{table*}[t]
+\caption{Results reported by related work and the corresponding results of this work. Values are quoted as reported; tasks, data and error definitions differ, so rows are not directly comparable.}\label{tab:reported}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}p{0.19\textwidth}p{0.31\textwidth}p{0.25\textwidth}p{0.18\textwidth}@{}}
+\toprule
+Work & Task and data & Measure & Result \\
+\midrule
+\multicolumn{4}{@{}l}{\emph{Hallucination in legal question answering}} \\
+Dahl \emph{et al.}~\cite{dahl2024} & General-purpose LLMs; verifiable questions about random U.S. federal court cases & Hallucination rate & 58\% (GPT-4) to 88\% (Llama~2) \\
+Magesh \emph{et al.}~\cite{magesh2025} & Commercial legal research tools built on RAG (Lexis+ AI, Westlaw AI-Assisted Research, Ask Practical Law AI) & Hallucination rate (false or misgrounded) & 17\% to 33\% \\
+\textbf{This work}, single-agent RAG, 4 passages & \ResTestCases\ questions on U.S. Supreme Court decisions; Mistral-7B, retrieval trained for retrieval & Answers citing a non-existent case; answers misgrounded & \ResStdBaseFourRAnswersFabricated\%; \ResStdBaseFourRMisgrounded\% \\
+\textbf{This work}, single-agent RAG, 8 passages & Same & Same & \ResStdBaseEightRAnswersFabricated\%; \ResStdBaseEightRMisgrounded\% \\
+\textbf{This work}, final \sys & Same questions; debate with validated checker and ledger & Same & \ResStdFinalAnswersFabricated\%; \ResStdFinalMisgrounded\% \\
+\midrule
+\multicolumn{4}{@{}l}{\emph{Citation quality}} \\
+ALCE, Gao \emph{et al.}~\cite{alce} & Question answering with citations; ELI5 & Answers lacking complete citation support, best systems & 50\% \\
+\textbf{This work}, single-agent RAG, 4 passages & As above & Citation recall; citation precision (ALCE definitions, validated support model) & \ResStdBaseFourRCitationRecall\%; \ResStdBaseFourRCitationPrecision\% \\
+\textbf{This work}, final \sys & As above & Same & \ResStdFinalCitationRecall\%; \ResStdFinalCitationPrecision\% \\
+\midrule
+\multicolumn{4}{@{}l}{\emph{Verification and hallucination detection}} \\
+HalluGraph~\cite{hallugraph} & Detection of unfaithful output in legal RAG by knowledge-graph alignment & Area under the ROC curve & 0.979 (structured control documents); 0.89 (generative legal tasks) \\
+\textbf{This work}, first checker & \ResStressTotal\ labelled citations (correct, swapped holding, false holding, invented, outside corpus) & Invented citations rejected; correct citations accepted; area, correct against swapped holdings & 100\%; \ResStressCorrectAcceptedPct\%; \ResStressAUC \\
+\textbf{This work}, validated support model & Held-out half of the correct, swapped and false holdings; near-miss probe & Area, correct against incorrect holdings; correct accepted; near-miss holdings accepted & \ResGateTestAUC; \ResProbeCorrectPct\%; \ResProbeNearMissPct\% \\
+\midrule
+\multicolumn{4}{@{}l}{\emph{Multi-agent and agentic systems}} \\
+PROClaim~\cite{proclaim} & Courtroom-style debate with progressive retrieval; claim verification on Check-COVID & Accuracy; gain over standard multi-agent debate & 81.7\%; +10.0\pp \\
+AgentCourt~\cite{agentcourt} & Adversarially evolved lawyer agents; CourtBench, after 1{,}000 simulated civil cases & Improvement of evolved over original agents & +12.1\% \\
+ChatLaw~\cite{chatlaw} & Cooperative multi-agent assistant for Chinese law; LawBench and the Unified Qualification Exam for Legal Professionals & Gain over GPT-4 & +7.73\% accuracy; +11 points \\
+LRAS~\cite{lras} & Legal reasoning with agentic search & Gain over state-of-the-art baselines & 8.2\% to 32\% \\
+\textbf{This work}, final \sys\ against single-agent RAG on the same retrieval & \ResTestCases\ questions on U.S. Supreme Court decisions & Authority accuracy; difference from the 4-passage and the 8-passage baseline & \ResStdFinalAuthorityAccuracy\%; \ResCmpFinalBaseFourRTargetAnswerDiff\pp\ and \ResCmpFinalBaseEightRTargetAnswerDiff\pp \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+% ════════════════════════════════════════════════════════════════════════════
+\section{Discussion and Limitations}
+
+\emph{What the audit changes.} In effect, our first evaluation measured its own cache. A third of its debates never took place, and the two measures on which the baseline was recorded as better do not measure what their names suggest. The stress test of the verifier is the one part of that evaluation that stands unchanged, and it was the part that led us to the next defect.
+
+\emph{The corrected evaluation was wrong as well.} The runs we made after the audit reproduced an error from the first evaluation that the audit had missed: the baseline parser discarded citations written as strings. Until we corrected it, the eight-passage baseline appeared to cite the target in \ResParseBaseEightTargetAsSaved\% of its answers when it actually did so in \ResPaBaseEightTargetAnswer\%, and the debate appeared to be level with the single agent when it was in fact behind. This error favoured the method under study, just as the cache had worked against it. We found it only because an implausible number made us go back to the raw outputs, and we could correct it without a new run only because the first repair saves those outputs. We take two practical lessons from this. A run that saves only parsed fields and aggregate scores cannot be audited. And an audit has to cover the baseline as carefully as the system under study.
+
+\emph{What the repairs achieve.} The repairs roughly double the share of debate answers that rest on the target decision, from \ResPaOldTargetAnswer\% to \ResPaFinalTargetAnswer\%. They reduce answers without authority from \ResPaOldNoAuthority\% to \ResPaFinalNoAuthority\% and shorten a debate from \ResPaOldSecondsPerCase\ to \ResPaFinalSecondsPerCase\ seconds. The support model chosen by validation separates correct from incorrect holdings, which the default model could not do, and no debate answer rests on a non-existent case.
+
+\emph{What the debate does not achieve.} On no measure of the final answer other than existence is the debate ahead of a single agent with the same retriever, and on most it is significantly behind. More of the single agent's answers rest on the target, more of its sentences are supported by what it cites, its answers overlap more with the reference holdings, and it answers about \ResPaFinalTimeRatio\ times faster. This holds at both context sizes. None of the ablation variants differs significantly from the full system, so we cannot show that any single component contributes. The agents of a debate still cite the target in \ResPaFinalTargetAny\% of cases, but a single agent with four passages does so in \ResPaBaseFourRTargetAny\%, and its answer keeps what it cites.
+
+\emph{Why.} We can offer three observations on the cause, none of which settles it. First, the answer of a debate rests on \ResPaFinalCitesAnswer\ decisions on average, which the judge selects from a ledger holding \ResFinalLossSupportedPerDebate\ supported ones, while a single agent names every decision it used (\ResPaBaseFourRCitesAnswer\ per answer). The target is lost in that selection in \ResFinalLossLostSupported\ of \ResFinalLossCases\ debates. Second, the checker verifies the holding that an agent attached to a citation, not the answer that is finally given, so verified citations do not add up to a verified answer. This is visible in the citation precision of debate answers, which is lower than that of the baseline. Third, the generator is a 7-billion-parameter model that has to play four roles in sequence. We did not test whether a stronger generator would make better use of the debate.
+
+\emph{Limitations.} Our benchmark contains \ResTestCases\ questions on United States Supreme Court decisions with one target decision each. The conclusions do not extend to other courts, jurisdictions or question types, and we do not measure the relevance of citations other than the target. A measure that asks whether an answer names the target favours answers that name several decisions, which is why we also report citation precision. The final system, the first debate and all baselines have three seeds, the repaired debate has two, and its ablation variants and the two attribution runs have one. Between seeds, the share of answers resting on the target has a standard deviation of \ResPaFinalTargetAnswerSD\ percentage points for the final debate, \ResPaOldTargetAnswerSD\ for the first debate and \ResPaBaseFourRTargetAnswerSD\ for the four-passage baseline. We evaluated one generator at one temperature. The support model was validated on citations built from the reference holdings of the same benchmark, with incorrect holdings taken from unrelated cases, and it accepts \ResProbeNearMissPct\% of near-miss holdings. The same model judges citation support in the standard measures, for the baseline and the debate alike. None of our measures scores the legal correctness of an answer. The baseline of the first evaluation cannot be corrected. Finally, volumes 573 to 593 contain opinions extracted from PDF without order entries, and the most recent of them is partial.
+
+\emph{Implications.} One design decision held up throughout: separating the question of whether a citation exists from the question of whether it supports the claim. Both versions of the checker answered the existence question reliably, and the support question became answerable once we chose the model by validation. The debate built around the checker did not hold up on this benchmark. The natural next system is a single agent followed by the checker, which would keep the answer of the stronger configuration and remove the citations that do not exist or do not support it. The runs reported here already contain what is needed to estimate it. Whether adversarial debate helps with a stronger generator, with questions that have no single landmark answer, or with a judge that reads the checked answer instead of only checked citations, remains an open question.
+
+% ════════════════════════════════════════════════════════════════════════════
+\section{Conclusion}
+We presented \sys, a multi-agent debate framework for legal question answering in which citation verification, debate control and memory operate inside the debate loop, together with a resumable pipeline that builds a \ResCorpusVolumes-volume corpus of the United States Reports. We also audited our own evaluation of that framework twice. The first evaluation was distorted by a similarity-keyed verdict cache that replaced \ResAudCacheBench\ of \ResTestCases\ debates with answers to other questions, by measures that did not measure what they named, and by an entailment model that had not been validated. The second was distorted by a baseline parser that discarded citations written as strings. After six repairs to the system and corrections to both evaluations, the debate is a much better debate than the one we started with. \ResPaFinalTargetAnswer\% of its answers rest on the target decision instead of \ResPaOldTargetAnswer\%, in \ResPaFinalSecondsPerCase\ seconds instead of \ResPaOldSecondsPerCase, with a support model that passed a held-out validation at an AUC of \ResGateTestAUC\ and with no non-existent case in any answer. It is nevertheless not a better system than a single agent. On the same retriever, the single-agent baseline rests on the target in \ResPaBaseFourRTargetAnswer\% of its answers, scores higher on citation recall, citation precision, grounded answers, ROUGE-L and BERTScore, and needs \ResPaBaseFourRSecondsPerCase\ seconds. For this benchmark and a 7-billion-parameter generator, the only contribution of adversarial debate with in-loop verification that we could measure is the exclusion of non-existent citations. In future work we plan to apply the validated checker to the single agent's answer, to test the debate with a stronger generator and on questions without a single landmark answer, and to extend the benchmark beyond one jurisdiction.
+
+\balance
+\bibliographystyle{IEEEtran}
+\begin{thebibliography}{00}
+\bibitem{dahl2024} M.~Dahl, V.~Magesh, M.~Suzgun, and D.~E.~Ho, ``Large legal fictions: Profiling legal hallucinations in large language models,'' \emph{J. Legal Anal.}, vol.~16, no.~1, pp.~64--93, 2024.
+\bibitem{magesh2025} V.~Magesh, F.~Surani, M.~Dahl, M.~Suzgun, C.~D.~Manning, and D.~E.~Ho, ``Hallucination-free? Assessing the reliability of leading AI legal research tools,'' \emph{J. Empirical Legal Stud.}, vol.~22, pp.~216--242, 2025.
+\bibitem{mata2023} \emph{Mata v.\ Avianca, Inc.}, 678 F.~Supp.~3d 443 (S.D.N.Y. 2023).
+\bibitem{sciwhitepaper2025} Centre for Research and Planning, Supreme Court of India, ``White paper on artificial intelligence and judiciary,'' New Delhi, India, Nov. 2025.
+\bibitem{disclawllm} S.~Yue \emph{et al.}, ``DISC-LawLLM: Fine-tuning large language models for intelligent legal services,'' arXiv:2309.11325, 2023.
+\bibitem{lawgpt} Z.~Zhou \emph{et al.}, ``LawGPT: A Chinese legal knowledge-enhanced large language model,'' arXiv:2406.04614, 2024.
+\bibitem{lawformer} C.~Xiao, X.~Hu, Z.~Liu, C.~Tu, and M.~Sun, ``Lawformer: A pre-trained language model for Chinese legal long documents,'' \emph{AI Open}, vol.~2, pp.~79--84, 2021.
+\bibitem{legalbench} N.~Guha \emph{et al.}, ``LegalBench: A collaboratively built benchmark for measuring legal reasoning in large language models,'' in \emph{Proc. Adv. Neural Inf. Process. Syst. (NeurIPS), Datasets and Benchmarks Track}, 2023.
+\bibitem{lawbench} Z.~Fei \emph{et al.}, ``LawBench: Benchmarking legal knowledge of large language models,'' in \emph{Proc. Conf. Empirical Methods Natural Lang. Process. (EMNLP)}, 2024.
+\bibitem{lexglue} I.~Chalkidis \emph{et al.}, ``LexGLUE: A benchmark dataset for legal language understanding in English,'' in \emph{Proc. Annu. Meeting Assoc. Comput. Linguistics (ACL)}, 2022, pp.~4310--4330.
+\bibitem{legalagentbench} H.~Li \emph{et al.}, ``LegalAgentBench: Evaluating LLM agents in legal domain,'' arXiv:2412.17259, 2024.
+\bibitem{lewis2020} P.~Lewis \emph{et al.}, ``Retrieval-augmented generation for knowledge-intensive NLP tasks,'' in \emph{Proc. Adv. Neural Inf. Process. Syst. (NeurIPS)}, 2020.
+\bibitem{crag} S.-Q.~Yan, J.-C.~Gu, Y.~Zhu, and Z.-H.~Ling, ``Corrective retrieval augmented generation,'' arXiv:2401.15884, 2024.
+\bibitem{hyparag} R.~Kalra \emph{et al.}, ``HyPA-RAG: A hybrid parameter adaptive retrieval-augmented generation system for AI legal and policy applications,'' arXiv:2409.09046, 2024.
+\bibitem{lras} Y.~Zhou \emph{et al.}, ``LRAS: Advanced legal reasoning with agentic search,'' arXiv:2601.07296, 2026.
+\bibitem{bm25} S.~Robertson and H.~Zaragoza, ``The probabilistic relevance framework: BM25 and beyond,'' \emph{Found. Trends Inf. Retr.}, vol.~3, no.~4, pp.~333--389, 2009.
+\bibitem{legalbert} I.~Chalkidis, M.~Fergadiotis, P.~Malakasiotis, N.~Aletras, and I.~Androutsopoulos, ``LEGAL-BERT: The muppets straight out of law school,'' in \emph{Findings Assoc. Comput. Linguistics: EMNLP}, 2020, pp.~2898--2904.
+\bibitem{rrf} G.~V.~Cormack, C.~L.~A.~Clarke, and S.~B\"uttcher, ``Reciprocal rank fusion outperforms Condorcet and individual rank learning methods,'' in \emph{Proc. Int. ACM SIGIR Conf. Res. Develop. Inf. Retr.}, 2009, pp.~758--759.
+\bibitem{sectionhybrid} R.~Arulanandam and N.~de~Silva, ``Section-weighted hybrid approach for legal case retrieval,'' arXiv:2606.03138, 2026.
+\bibitem{leakgraphrag} J.~Liu and J.~Tang, ``LeAK-GraphRAG: A legal academic knowledge GraphRAG framework with hybrid retrieval for mitigating hallucinations,'' in \emph{Legal Knowledge and Information Systems}, ser. Frontiers in Artificial Intelligence and Applications. IOS Press, 2025, doi: 10.3233/FAIA251624.
+\bibitem{selfcheckgpt} P.~Manakul, A.~Liusie, and M.~J.~F.~Gales, ``SelfCheckGPT: Zero-resource black-box hallucination detection for generative large language models,'' in \emph{Proc. Conf. Empirical Methods Natural Lang. Process. (EMNLP)}, 2023, pp.~9004--9017.
+\bibitem{cove} S.~Dhuliawala \emph{et al.}, ``Chain-of-verification reduces hallucination in large language models,'' in \emph{Findings Assoc. Comput. Linguistics: ACL}, 2024, pp.~3563--3578.
+\bibitem{selfrag} A.~Asai, Z.~Wu, Y.~Wang, A.~Sil, and H.~Hajishirzi, ``Self-RAG: Learning to retrieve, generate, and critique through self-reflection,'' in \emph{Proc. Int. Conf. Learn. Represent. (ICLR)}, 2024.
+\bibitem{hallugraph} V.~No\"el, E.~Y.~Seidou, C.~K.~Capo-Chichi, and G.~Amari, ``HalluGraph: Auditable hallucination detection for legal RAG systems via knowledge graph alignment,'' arXiv:2512.01659, 2025.
+\bibitem{falkorirac} J.~Bose, ``Falkor-IRAC: Graph-constrained generation for verified legal reasoning in Indian judicial AI,'' arXiv:2605.14665, 2026.
+\bibitem{du2024} Y.~Du, S.~Li, A.~Torralba, J.~B.~Tenenbaum, and I.~Mordatch, ``Improving factuality and reasoning in language models through multiagent debate,'' in \emph{Proc. Int. Conf. Mach. Learn. (ICML)}, 2024.
+\bibitem{liang2024} T.~Liang \emph{et al.}, ``Encouraging divergent thinking in large language models through multi-agent debate,'' in \emph{Proc. Conf. Empirical Methods Natural Lang. Process. (EMNLP)}, 2024.
+\bibitem{smit2024} A.~Smit, N.~Grinsztajn, P.~Duckworth, T.~D.~Barrett, and A.~Pretorius, ``Should we be going MAD? A look at multi-agent debate strategies for LLMs,'' in \emph{Proc. Int. Conf. Mach. Learn. (ICML)}, 2024.
+\bibitem{metagpt} S.~Hong \emph{et al.}, ``MetaGPT: Meta programming for a multi-agent collaborative framework,'' in \emph{Proc. Int. Conf. Learn. Represent. (ICLR)}, 2024.
+\bibitem{autogen} Q.~Wu \emph{et al.}, ``AutoGen: Enabling next-gen LLM applications via multi-agent conversation,'' arXiv:2308.08155, 2023.
+\bibitem{chatlaw} J.~Cui \emph{et al.}, ``ChatLaw: A multi-agent collaborative legal assistant with knowledge graph enhanced mixture-of-experts large language model,'' arXiv:2306.16092, 2023.
+\bibitem{agentcourt} G.~Chen \emph{et al.}, ``AgentCourt: Simulating court with adversarial evolvable lawyer agents,'' arXiv:2408.08089, 2024.
+\bibitem{proclaim} M.~N.~Chowdhury, N.~J.~Beg, U.~H.~Khan, S.~R.~Raiyan, M.~K.~Hasan, and H.~Mahmud, ``Courtroom-style multi-agent debate with progressive RAG and role-switching for controversial claim verification,'' arXiv:2603.28488, 2026.
+\bibitem{cap} Harvard Law School Library Innovation Lab, ``Caselaw Access Project.'' [Online]. Available: https://case.law
+\bibitem{usreports} Supreme Court of the United States, ``United States Reports: Bound volumes and preliminary prints.'' [Online]. Available: https://www.supremecourt.gov/opinions/USReports.aspx
+\bibitem{chroma} Chroma, ``Chroma: The open-source embedding database.'' [Online]. Available: https://github.com/chroma-core/chroma
+\bibitem{mistral7b} A.~Q.~Jiang \emph{et al.}, ``Mistral 7B,'' arXiv:2310.06825, 2023.
+\bibitem{debertav3} P.~He, J.~Gao, and W.~Chen, ``DeBERTaV3: Improving DeBERTa using ELECTRA-style pre-training with gradient-disentangled embedding sharing,'' in \emph{Proc. Int. Conf. Learn. Represent. (ICLR)}, 2023.
+\bibitem{langgraph} LangChain, Inc., ``LangGraph.'' [Online]. Available: https://github.com/langchain-ai/langgraph
+\bibitem{alce} T.~Gao, H.~Yen, J.~Yu, and D.~Chen, ``Enabling large language models to generate text with citations,'' in \emph{Proc. Conf. Empirical Methods Natural Lang. Process. (EMNLP)}, 2023.
+\bibitem{sbert} N.~Reimers and I.~Gurevych, ``Sentence-BERT: Sentence embeddings using Siamese BERT-networks,'' in \emph{Proc. Conf. Empirical Methods Natural Lang. Process. (EMNLP)}, 2019, pp.~3982--3992.
+\bibitem{mpnet} K.~Song, X.~Tan, T.~Qin, J.~Lu, and T.-Y.~Liu, ``MPNet: Masked and permuted pre-training for language understanding,'' in \emph{Proc. Adv. Neural Inf. Process. Syst. (NeurIPS)}, 2020.
+\bibitem{tasksource} D.~Sileo, ``tasksource: A dataset harmonization framework for streamlined NLP multi-task learning and evaluation,'' arXiv:2301.05948, 2023.
+\bibitem{bge} S.~Xiao, Z.~Liu, P.~Zhang, N.~Muennighoff, D.~Lian, and J.-Y.~Nie, ``C-Pack: Packed resources for general Chinese embeddings,'' arXiv:2309.07597, 2023.
+\end{thebibliography}
+
+\end{document}

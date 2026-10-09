@@ -1,0 +1,93 @@
+% Fig. 1 - system architecture (full text width).
+\begin{tikzpicture}[
+    x=1cm, y=1cm,
+    font=\sffamily\scriptsize,
+    >={Stealth[length=1.7mm,width=1.3mm]},
+    lane/.style={draw=#1!60, fill=#1!6, rounded corners=5pt, line width=0.7pt},
+    lanetitle/.style={font=\sffamily\bfseries\scriptsize, text=#1!70!black, anchor=north west, inner sep=2pt},
+    blk/.style={draw=#1!75!black, fill=#1!18, rounded corners=2.5pt, align=center, line width=0.6pt,
+                minimum height=9mm, inner sep=1.6pt, text width=13.5mm},
+    wide/.style={blk=#1, text width=28mm, minimum height=8.5mm},
+    store/.style={cylinder, shape border rotate=90, aspect=0.16, draw=#1!75!black, fill=#1!16, line width=0.6pt,
+                  align=center, text width=20mm, minimum height=10.5mm, inner sep=1.2pt},
+    flow/.style={->, line width=0.75pt, draw=black!75},
+    bus/.style={->, line width=0.75pt, draw=#1!85!black, dashed, rounded corners=3pt},
+    note/.style={font=\sffamily\tiny, text=black!70, align=center},
+]
+% ── lanes ───────────────────────────────────────────────────────────────────
+\draw[lane=cData]   (0.00,0.55) rectangle (3.55,9.10);
+\draw[lane=cStore]  (3.80,0.55) rectangle (6.75,9.10);
+\draw[lane=cAgent]  (7.00,0.55) rectangle (17.75,9.10);
+\node[lanetitle=cData]  at (0.08,9.05) {A. Offline corpus construction};
+\node[lanetitle=cStore] at (3.88,9.05) {B. Knowledge stores};
+\node[lanetitle=cAgent] at (7.08,9.05) {C. Online debate graph (LangGraph state machine)};
+
+% ── lane A ──────────────────────────────────────────────────────────────────
+\node[wide=cData] (cap) at (1.775,7.45) {CAP static API\\U.S.\ Reports vols.\ 1--572};
+\node[wide=cData] (pdf) at (1.775,6.35) {Official U.S.\ Reports PDFs\\vols.\ 573--593};
+\node[wide=cPipe] (s1)  at (1.775,5.00) {\textbf{Stage 1: Download}\\verified per-volume JSON};
+\node[wide=cPipe] (s2)  at (1.775,3.80) {\textbf{Stage 2: Chunk}\\450-word windows, 75 overlap};
+\node[wide=cPipe] (s3)  at (1.775,2.60) {\textbf{Stage 3: Embed + index}\\fingerprinted artifacts};
+\node[note, text width=31mm] at (1.775,1.30) {per-volume state ledger\\64-volume batch commits\\atomic writes, resume by default};
+\draw[flow] (cap.south) -- (pdf.north);
+\draw[flow] (pdf.south) -- (s1.north);
+\draw[flow] (s1.south) -- (s2.north);
+\draw[flow] (s2.south) -- (s3.north);
+
+% ── lane B ──────────────────────────────────────────────────────────────────
+\node[store=cStore, minimum height=9mm] (dense) at (5.13,7.55) {Dense index\\bge-base};
+\node[store=cStore, minimum height=9mm] (bm25)  at (5.13,6.40) {BM25 index\\word tokens};
+\node[store=cVerify, minimum height=9mm] (lb) at (5.13,5.25) {Opinion passages\\Legal-BERT};
+\node[store=cVerify, minimum height=9mm] (cat)  at (5.13,4.10) {Case catalog\\cite, year, length};
+\node[store=cVerify, minimum height=9mm] (known) at (5.13,2.95) {Known-case set\\canonical names};
+\node[note, text width=26mm] at (5.275,1.30) {\ResCorpusChunks\ passages\\\ResCorpusReports\ reports\\one corpus fingerprint};
+\draw[flow, draw=cPipe!80!black] (s3.east) -- (3.80,2.60);
+
+% ── lane C: debate graph ────────────────────────────────────────────────────
+\def\ra{6.55}\def\rb{3.45}
+\node[blk=cUser]   (q)    at (7.85,\ra)  {Legal\\question};
+\node[blk=cMemory] (mc)   at (9.70,\ra)  {Memory\\check};
+\node[blk=cRetr]   (ret)  at (11.55,\ra) {Hybrid\\retrieval\\(RRF)};
+\node[blk=cPros]   (pro)  at (13.40,\ra) {\textbf{Prosecutor}\\argues};
+\node[blk=cDef]    (def)  at (15.25,\ra) {\textbf{Defense}\\challenges};
+\node[blk=cVerify] (cce)  at (17.00,\ra) {\textbf{CCE}\\checks,\\keeps ledger};
+\node[blk=cUser]   (ans)  at (7.85,\rb)  {Answer +\\verified\\citations};
+\node[blk=cMemory] (ms)   at (9.70,\rb)  {Memory\\store};
+\node[blk=cJudge]  (jud)  at (11.55,\rb) {\textbf{Judge}\\reads\\ledger};
+\node[blk=cCtrl]   (ddc)  at (13.40,\rb) {\textbf{DDC}\\continue?};
+\node[blk=cRefl]   (ref)  at (15.25,\rb) {Reflection\\finds gaps};
+\node[store=cMemory, text width=14mm, minimum height=9mm] (mem) at (9.70,5.00) {Adaptive\\memory};
+
+\draw[flow] (q) -- (mc);
+\draw[flow] (mc) -- (ret);
+\draw[flow] (ret) -- (pro);
+\draw[flow] (pro) -- (def);
+\draw[flow] (def) -- (cce);
+\draw[flow, rounded corners=3pt] (cce.south) |- (ref.east);
+\draw[flow] (ref) -- (ddc);
+\draw[flow] (ddc) -- (jud);
+\node[note, text=black!75] at (12.475,4.07) {TERMINATE};
+\draw[flow] (jud) -- (ms);
+\draw[flow] (ms) -- (ans);
+\draw[flow, draw=cCtrl!90!black, line width=1pt, rounded corners=3pt] (ddc.north) -- ++(0,0.95) -| (ret.south);
+\node[note, text=cCtrl!60!black, text width=30mm, align=left, anchor=west] at (13.58,4.42) {\textbf{CONTINUE}: only while no\\citation is supported\\(at most 3 rounds)};
+\draw[flow, draw=cMemory!85!black] (mem) -- node[right, note, text=cMemory!80!black] {cache, risk list} (mc);
+\draw[flow, draw=cMemory!85!black] (ms) -- node[right, note, text=cMemory!80!black] {verdict, risk} (mem);
+\draw[flow, draw=cMemory!85!black, dashed] (mc.south west) -- node[left, note, text=cMemory!80!black, pos=0.45] {cache\\hit} (ans.north);
+
+% ── data buses from the stores ──────────────────────────────────────────────
+\draw[bus=cRetr]   (dense.east) -- (6.44,7.55) -- (6.44,7.85) -- (11.55,7.85) -- (ret.north);
+\draw[bus=cRetr, -] (bm25.east) -- (6.44,6.40) -- (6.44,7.55);
+\draw[bus=cVerify] (cat.east) -- (6.61,4.10) -- (6.61,8.30) -- (17.00,8.30) -- (cce.north);
+\draw[bus=cVerify, -] (lb.east) -- (6.61,5.25);
+\draw[bus=cVerify, -] (known.east) -- (6.61,2.95) -- (6.61,4.10);
+\node[note, text=cRetr!75!black, anchor=south] at (8.95,7.86) {8 fused passages, at most 2 per case};
+\node[note, text=cVerify!70!black, anchor=south] at (14.30,8.31) {resolved opinion and its passages};
+
+% ── models strip ────────────────────────────────────────────────────────────
+\draw[draw=black!35, fill=white, rounded corners=3pt, line width=0.5pt] (7.25,0.80) rectangle (17.50,2.10);
+\node[note, anchor=west, text=black!80] at (7.35,1.85) {\textbf{Models (one 32\,GB GPU)}};
+\node[blk=cAgent, text width=30mm, minimum height=6.5mm] at (9.15,1.25) {Mistral-7B-Instruct-v0.3\\all four agents};
+\node[blk=cRetr,  text width=30mm, minimum height=6.5mm] at (12.45,1.25) {bge-base, Legal-BERT\\retrieval, checker passages};
+\node[blk=cVerify,text width=30mm, minimum height=6.5mm] at (15.75,1.25) {DeBERTa long-input NLI\\holding support (validated)};
+\end{tikzpicture}
