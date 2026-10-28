@@ -2,20 +2,16 @@ import { AnimatePresence, motion } from "framer-motion";
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type ReactNode } from "react";
 import type { Tier } from "../lib/api";
 import { CountUp, M3_DURATION, M3_EASE, riseIn, useRipple } from "../lib/motion";
+import { ICONS } from "./icons";
 
 // Material 3 building blocks: icons, buttons, chips, segmented buttons, cards, tooltips.
 
-/** A Material Symbols (Rounded) icon. `fill` switches to the filled style, as M3 does for selected states. */
+/** An SVG icon, named with its Material Symbols identifier (see components/icons.tsx).
+ *  `fill` marks a selected or emphasised state with a heavier stroke. Decorative: the
+ *  surrounding control or text carries the label. */
 export function Icon({ name, size = 20, fill = false, className = "", style }: { name: string; size?: number; fill?: boolean; className?: string; style?: CSSProperties }) {
-  return (
-    <span
-      className={`msr ${className}`}
-      aria-hidden
-      style={{ fontSize: size, width: size, height: size, fontVariationSettings: `'FILL' ${fill ? 1 : 0}, 'wght' 400, 'GRAD' 0, 'opsz' ${Math.min(48, Math.max(20, size))}`, ...style }}
-    >
-      {name}
-    </span>
-  );
+  const Glyph = ICONS[name] ?? ICONS.help;
+  return <Glyph aria-hidden focusable={false} size={size} strokeWidth={fill ? 2.25 : 1.75} absoluteStrokeWidth={size < 18} className={`shrink-0 ${className}`} style={style} />;
 }
 
 // ── Buttons ─────────────────────────────────────────────────────────────────

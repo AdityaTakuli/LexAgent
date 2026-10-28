@@ -4,9 +4,9 @@ import gsap from "gsap";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { applyEvent, DebateThread, newDebate, UserBubble, type Debate } from "../components/debate";
 import { Button, Icon, IconButton, useStickToBottom } from "../components/ui";
-import { api, replayTranscript, streamDebate, type DebateEvent, type Status } from "../lib/api";
+import { api, modelLabel, replayTranscript, streamDebate, type DebateEvent, type Status } from "../lib/api";
 import { compact } from "../lib/format";
-import { M3_EASE, prefersReducedMotion, useRipple } from "../lib/motion";
+import { M3_EASE, prefersReducedMotion } from "../lib/motion";
 
 interface Turn {
   id: number;
@@ -14,108 +14,150 @@ interface Turn {
   debate: Debate;
 }
 
-const HEADLINE = "Ask a question of U.S. Supreme Court law";
+const HEADLINE = "Ask a question of Supreme Court law.";
+const MODEL_KEY = "lexagent.model";
 
-function SuggestionCard({ topic, query, index, onAsk }: { topic: string; query: string; index: number; onAsk: (q: string) => void }) {
-  const ripple = useRipple();
+function readModel(): string {
+  try {
+    return localStorage.getItem(MODEL_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+/** Which language model writes the arguments and the ruling. Search and citation checks stay the same. */
+function ModelSwitch({ options, value, onChange, disabled }: { options: string[]; value: string; onChange: (model: string) => void; disabled: boolean }) {
+  return (
+    <div className="mx-auto mb-2 flex w-full max-w-3xl items-center gap-2" role="radiogroup" aria-label="Language model">
+      <span className="label-medium text-ink-2">Model</span>
+      <div className="flex rounded-full border border-line bg-surface p-0.5">
+        {options.map((option) => {
+          const selected = option === value;
+          return (
+            <button
+              key={option}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              disabled={disabled}
+              onClick={() => onChange(option)}
+              className={`label-medium h-8 rounded-full px-3.5 transition-colors disabled:cursor-not-allowed ${selected ? "bg-inverse-surface text-inverse-on-surface" : "text-ink-2 hover:text-ink disabled:opacity-60"}`}
+            >
+              {modelLabel(option)}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function SuggestionCard({ topic, query, index, onAsk, disabled }: { topic: string; query: string; index: number; onAsk: (q: string) => void; disabled: boolean }) {
   return (
     <motion.button
       type="button"
       onClick={() => onAsk(query)}
-      onPointerDown={ripple.onPointerDown}
-      initial={{ opacity: 0, y: 16 }}
+      disabled={disabled}
+      initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.55 + index * 0.07, duration: 0.4, ease: M3_EASE.emphasizedDecelerate }}
-      whileHover={{ y: -2 }}
-      whileTap={{ scale: 0.98 }}
-      className="state-layer card-outlined cursor-pointer p-4 text-left text-ink"
+      transition={{ delay: 0.35 + index * 0.05, duration: 0.35, ease: M3_EASE.emphasizedDecelerate }}
+      className="state-layer group card-outlined cursor-pointer p-4 text-left text-ink transition-shadow hover:shadow-[var(--shadow-2)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-none"
     >
-      {ripple.layer}
-      <div className="label-medium flex items-center gap-1.5 text-accent">
-        <Icon name="lightbulb" size={16} />
-        {topic}
-      </div>
+      <div className="label-medium text-ink-2">{topic}</div>
       <div className="body-medium mt-1.5 line-clamp-3 text-ink">{query}</div>
+      <div className="label-medium mt-3 flex items-center gap-1 text-ink-2 transition-colors group-hover:text-ink">
+        Ask this <Icon name="arrow_forward" size={14} />
+      </div>
     </motion.button>
   );
 }
 
-function Welcome({ status, suggestions, onAsk, onReplay }: { status: Status | null; suggestions: { topic: string; query: string }[]; onAsk: (q: string) => void; onReplay: () => void }) {
+function Welcome({ status, offline, suggestions, onAsk, onReplay }: { status: Status | null; offline: boolean; suggestions: { topic: string; query: string }[]; onAsk: (q: string) => void; onReplay: () => void }) {
   const scope = useRef<HTMLDivElement>(null);
   useGSAP(
     () => {
       if (prefersReducedMotion()) return;
-      gsap.from(".hero-word", { yPercent: 110, opacity: 0, duration: 0.7, ease: "power4.out", stagger: 0.045 });
-      gsap.from(".hero-mark", { scale: 0.6, opacity: 0, rotate: -12, duration: 0.8, ease: "back.out(1.8)" });
-      gsap.from(".hero-fade", { opacity: 0, y: 10, duration: 0.6, delay: 0.45, stagger: 0.08, ease: "power2.out" });
+      gsap.from(".hero-word", { yPercent: 100, opacity: 0, duration: 0.6, ease: "power3.out", stagger: 0.035 });
+      gsap.from(".hero-fade", { opacity: 0, y: 8, duration: 0.5, delay: 0.3, stagger: 0.06, ease: "power2.out" });
     },
     { scope },
   );
 
   const engine = status?.engine;
-  const gpu = status?.gpu;
-  const gpuBusy = engine?.state === "cold" && gpu ? gpu.memory_used_mb / gpu.memory_total_mb > 0.5 : false;
-
   return (
-    <div ref={scope} className="relative flex min-h-full flex-col items-center justify-center px-4 py-10">
-      <div className="hero-grid pointer-events-none absolute inset-0" aria-hidden />
-      <div className="relative w-full max-w-3xl text-center">
-        <div className="hero-mark elevation-2 mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-[20px] bg-accent-wash text-on-accent-wash">
-          <Icon name="balance" size={32} fill />
-        </div>
-        <h1 className="display-small text-ink">
+    <div ref={scope} className="flex min-h-full flex-col items-center justify-center px-5 py-12">
+      <div className="w-full max-w-3xl">
+        <p className="hero-fade eyebrow text-ink-2">U.S. Supreme Court · {status ? `${compact(status.corpus.chunks)} passages, ${status.corpus.volumes_indexed} volumes` : "U.S. Reports"}</p>
+        <h1 className="display-small mt-3 text-ink">
           {HEADLINE.split(" ").map((word, index) => (
             <span key={index} className="inline-block overflow-hidden pb-1 align-bottom">
               <span className="hero-word inline-block">{word}&nbsp;</span>
             </span>
           ))}
         </h1>
-        <p className="hero-fade body-large mx-auto mt-3 max-w-xl text-ink-2">
-          A prosecutor and a defense argue from retrieved opinions, every citation is checked against the opinion it names, and a judge gives the verdict.
-          {status ? ` The corpus holds ${compact(status.corpus.chunks)} passages from ${status.corpus.volumes_indexed} volumes of the U.S. Reports.` : ""}
+        <p className="hero-fade body-large mt-3 max-w-2xl text-ink-2">
+          A <span className="font-medium text-prosecutor">prosecutor</span> and a <span className="font-medium text-defense">defense</span> argue from the opinions, every case they cite is checked against the opinion it names, and a judge rules on what survives.
         </p>
 
-        {gpuBusy && gpu && (
-          <div className="hero-fade body-medium mx-auto mt-5 flex max-w-xl items-start gap-3 rounded-2xl bg-tertiary-container px-4 py-3 text-left text-on-tertiary-container">
-            <Icon name="memory" size={20} className="mt-0.5" />
+        {offline && (
+          <div className="hero-fade body-medium mt-6 flex items-start gap-3 rounded-2xl border border-line bg-surface px-4 py-3 text-ink-2" role="status">
+            <Icon name="visibility_off" size={18} className="mt-0.5 text-muted" />
             <span>
-              The GPU is busy with another run ({(gpu.memory_used_mb / 1024).toFixed(0)} of {(gpu.memory_total_mb / 1024).toFixed(0)} GB in use). A live question needs it; wait for that run to finish, or replay a recorded debate below.
+              <span className="font-medium text-ink">Live questions are paused.</span> The LexAgent backend is offline right now. You can still watch a recorded debate.
             </span>
           </div>
         )}
 
-        <div className="mt-8 grid gap-3 text-left sm:grid-cols-2">
+        <div className="mt-8 grid gap-3 sm:grid-cols-2">
           {suggestions.slice(0, 4).map((item, index) => (
-            <SuggestionCard key={item.query} topic={item.topic} query={item.query} index={index} onAsk={onAsk} />
+            <SuggestionCard key={item.query} topic={item.topic} query={item.query} index={index} onAsk={onAsk} disabled={offline} />
           ))}
         </div>
 
-        {status?.sample_transcript && (
-          <div className="hero-fade mt-6">
-            <Button variant="tonal" icon="play_arrow" onClick={onReplay}>
-              Replay a recorded debate
-            </Button>
-          </div>
-        )}
-        <p className="hero-fade body-small mt-4 text-muted">
-          {engine?.state === "ready" ? "The model is loaded." : engine?.state === "loading" ? "The model is loading…" : "The model loads on the first question, which takes about two minutes."}
-        </p>
+        <div className="hero-fade mt-6 flex flex-wrap items-center gap-x-4 gap-y-2">
+          <Button variant={offline ? "filled" : "tonal"} icon="play_arrow" onClick={onReplay}>
+            Watch a recorded debate
+          </Button>
+          {!offline && (
+            <span className="body-small text-muted">
+              {engine?.state === "ready" ? "Ready. A debate takes about a minute." : engine?.state === "loading" ? "Loading the models…" : "The first question also loads the models, so it takes a little longer."}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
-export function ChatPage({ status, maxRounds, autoReplay }: { status: Status | null; maxRounds: number; autoReplay: boolean }) {
+const FALLBACK_SUGGESTIONS = [
+  { topic: "Fourth Amendment", query: "May law enforcement search the digital contents of a cell phone seized from an arrestee without a warrant?" },
+  { topic: "Fifth Amendment", query: "Are statements made during custodial interrogation admissible if the suspect was not warned of the right to remain silent?" },
+  { topic: "Sixth Amendment", query: "Must a state provide a lawyer to a defendant charged with a felony who cannot afford one?" },
+  { topic: "First Amendment", query: "What must a public official prove to recover damages for a defamatory falsehood about official conduct?" },
+];
+
+export function ChatPage({ status, offline, maxRounds, autoReplay }: { status: Status | null; offline: boolean; maxRounds: number; autoReplay: boolean }) {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
   const [running, setRunning] = useState(false);
+  const [chosenModel, setChosenModel] = useState(readModel);
+  const modelOptions = status?.models?.options ?? [];
+  const model = modelOptions.includes(chosenModel) ? chosenModel : (status?.models?.default ?? "");
+  const chooseModel = useCallback((next: string) => {
+    setChosenModel(next);
+    try {
+      localStorage.setItem(MODEL_KEY, next);
+    } catch {
+      /* the choice just isn't remembered */
+    }
+  }, []);
   const [suggestions, setSuggestions] = useState<{ topic: string; query: string }[]>([]);
   const { ref: scroller, onScroll, stick } = useStickToBottom<HTMLDivElement>();
   const nextId = useRef(1);
   const cancelReplay = useRef<(() => void) | null>(null);
 
   useEffect(() => {
-    api.suggestions().then((data) => setSuggestions(data.suggestions)).catch(() => setSuggestions([]));
+    api.suggestions().then((data) => setSuggestions(data.suggestions.length ? data.suggestions : FALLBACK_SUGGESTIONS)).catch(() => setSuggestions(FALLBACK_SUGGESTIONS));
     return () => cancelReplay.current?.();
   }, []);
 
@@ -137,14 +179,14 @@ export function ChatPage({ status, maxRounds, autoReplay }: { status: Status | n
       setInput("");
       setRunning(true);
       try {
-        await streamDebate(text, (event) => update(id, event));
+        await streamDebate(text, (event) => update(id, event), undefined, model || undefined);
       } catch (error) {
         update(id, { type: "error", message: error instanceof Error ? error.message : String(error) });
       } finally {
         setRunning(false);
       }
     },
-    [running, update],
+    [running, update, model],
   );
 
   const replay = useCallback(async () => {
@@ -162,11 +204,11 @@ export function ChatPage({ status, maxRounds, autoReplay }: { status: Status | n
 
   const replayed = useRef(false);
   useEffect(() => {
-    if (autoReplay && !replayed.current && status?.sample_transcript) {
+    if (autoReplay && !replayed.current) {
       replayed.current = true;
       void replay();
     }
-  }, [autoReplay, status, replay]);
+  }, [autoReplay, replay]);
 
   return (
     <div className="flex h-full flex-col">
@@ -174,7 +216,7 @@ export function ChatPage({ status, maxRounds, autoReplay }: { status: Status | n
         <AnimatePresence mode="wait">
           {turns.length === 0 ? (
             <motion.div key="welcome" exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.2, ease: M3_EASE.emphasizedAccelerate }} className="h-full">
-              <Welcome status={status} suggestions={suggestions} onAsk={ask} onReplay={replay} />
+              <Welcome status={status} offline={offline} suggestions={suggestions} onAsk={ask} onReplay={replay} />
             </motion.div>
           ) : (
             <motion.div key="thread" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-6">
@@ -190,15 +232,16 @@ export function ChatPage({ status, maxRounds, autoReplay }: { status: Status | n
       </div>
 
       <div className="px-4 pb-4 pt-2">
+        {modelOptions.length > 1 && !offline && <ModelSwitch options={modelOptions} value={model} onChange={chooseModel} disabled={running} />}
         <form
-          className="mx-auto flex w-full max-w-3xl items-end gap-2 rounded-[28px] bg-surface-2 py-2 pl-5 pr-2 focus-within:outline-2 focus-within:outline-accent"
+          className="glass mx-auto flex w-full max-w-3xl items-end gap-2 rounded-[22px] py-1.5 pl-4 pr-1.5 shadow-[var(--shadow-2)] focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[var(--focus)]"
           onSubmit={(event) => {
             event.preventDefault();
             void ask(input);
           }}
         >
           <label htmlFor="question" className="sr-only">
-            Your legal question
+            Legal question
           </label>
           <textarea
             id="question"
@@ -211,13 +254,13 @@ export function ChatPage({ status, maxRounds, autoReplay }: { status: Status | n
               }
             }}
             rows={1}
-            placeholder={running ? "The debate is in progress…" : "Ask about a constitutional or federal question"}
-            disabled={running}
-            className="body-large max-h-40 min-h-[40px] flex-1 resize-none bg-transparent py-2 text-ink outline-none placeholder:text-ink-2 disabled:opacity-60"
+            placeholder={offline ? "Live questions are paused while the backend is offline" : running ? "The debate is in progress…" : "Ask a constitutional or federal question"}
+            disabled={running || offline}
+            className="body-large max-h-40 min-h-[44px] flex-1 resize-none bg-transparent py-2.5 text-ink outline-none placeholder:text-muted disabled:cursor-not-allowed"
           />
-          <IconButton type="submit" icon="arrow_upward" label="Send question" variant="filled" disabled={running || !input.trim()} />
+          <IconButton type="submit" icon="arrow_upward" label="Ask" variant="filled" disabled={running || offline || !input.trim()} className="!h-10 !w-10" />
         </form>
-        <p className="body-small mx-auto mt-2 max-w-3xl text-center text-muted">A research prototype. Its answers are not legal advice; check every citation against the source.</p>
+        <p className="body-small mx-auto mt-2 max-w-3xl text-center text-muted">A research prototype. Answers are AI-generated and are not legal advice; check every citation against the source.</p>
       </div>
     </div>
   );

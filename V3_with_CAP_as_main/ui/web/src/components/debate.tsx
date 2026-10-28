@@ -2,7 +2,7 @@ import { useGSAP } from "@gsap/react";
 import { AnimatePresence, motion } from "framer-motion";
 import gsap from "gsap";
 import { useRef, useState, type ReactNode } from "react";
-import type { Citation, CitationCheck, DebateEvent, Passage, StageName } from "../lib/api";
+import { modelLabel, type Citation, type CitationCheck, type DebateEvent, type Passage, type StageName } from "../lib/api";
 import { num } from "../lib/format";
 import { CountUp, M3_EASE, prefersReducedMotion, spring } from "../lib/motion";
 import { Chip, Icon, Meter, VerdictBadge } from "./ui";
@@ -29,6 +29,7 @@ export interface Debate {
   done?: Extract<DebateEvent, { type: "done" }>;
   error?: string;
   replay?: boolean;
+  model?: string;
 }
 
 export const newDebate = (replay = false): Debate => ({ status: "running", stage: "memory_check", round: 1, rounds: [], replay });
@@ -48,6 +49,7 @@ export function applyEvent(debate: Debate, event: DebateEvent): Debate {
       next.stage = event.stage;
       next.stageMessage = event.message;
       if (event.round) next.round = event.round;
+      if (event.model) next.model = event.model;
       break;
     case "memory":
       if (event.hit) next.memoryHit = event.answer ?? "";
@@ -110,21 +112,21 @@ export function StageRail({ debate, maxRounds }: { debate: Debate; maxRounds: nu
       gsap.killTweensOf(".rail-dot");
       gsap.set(".rail-dot", { scale: 1 });
       if (!finished && debate.status === "running" && !reduce) {
-        gsap.to(`.rail-dot-${index}`, { scale: 1.7, duration: 0.6, ease: "sine.inOut", yoyo: true, repeat: -1 });
+        gsap.to(`.rail-dot-${index}`, { scale: 1.35, duration: 0.9, ease: "sine.inOut", yoyo: true, repeat: -1 });
       }
     },
     { scope, dependencies: [index, finished, debate.status] },
   );
 
   return (
-    <div ref={scope} className="elevation-1 rounded-2xl bg-surface-container px-5 pb-3 pt-3.5">
+    <div ref={scope} className="rounded-2xl border border-line bg-surface-container px-5 pb-3 pt-3.5 shadow-[var(--shadow-1)]">
       <div className="label-medium mb-3 flex items-center justify-between text-ink-2">
         <span className="flex items-center gap-1.5">
           <Icon name={finished ? "task_alt" : debate.status === "error" ? "error" : "hourglass_top"} size={16} />
           {debate.stage === "loading" ? debate.stageMessage ?? "Loading the models..." : finished ? "Debate complete" : debate.status === "error" ? "Stopped" : "Debate in progress"}
         </span>
         <span className="tnum">
-          Round {debate.round} of up to {maxRounds}
+          {debate.model ? `${modelLabel(debate.model)} · ` : ""}Round {debate.round} of up to {maxRounds}
         </span>
       </div>
       <div className="relative mx-3">
@@ -149,7 +151,7 @@ const ROLES = {
   retriever: { name: "Retriever", icon: "menu_book", color: "var(--md-sys-color-on-surface-variant)" },
   prosecutor: { name: "Prosecutor", icon: "swords", color: "var(--role-prosecutor)" },
   defense: { name: "Defense", icon: "shield", color: "var(--role-defense)" },
-  checker: { name: "Citation check", icon: "fact_check", color: "var(--series-1)" },
+  checker: { name: "Citation check", icon: "fact_check", color: "var(--md-sys-color-on-surface-variant)" },
   reflection: { name: "Reflection", icon: "psychology", color: "var(--md-sys-color-on-surface-variant)" },
   controller: { name: "Debate controller", icon: "alt_route", color: "var(--md-sys-color-on-surface-variant)" },
   judge: { name: "Judge", icon: "gavel", color: "var(--role-judge)" },
@@ -159,16 +161,16 @@ const ROLES = {
 function Message({ role, meta, children, emphasis = false }: { role: keyof typeof ROLES; meta?: ReactNode; children: ReactNode; emphasis?: boolean }) {
   const info = ROLES[role];
   return (
-    <motion.div initial={{ opacity: 0, y: 18, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={spring} className="flex gap-3">
-      <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-2" aria-hidden>
-        <Icon name={info.icon} size={20} fill style={{ color: info.color }} />
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={spring} className="flex gap-3">
+      <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-line bg-surface" aria-hidden>
+        <Icon name={info.icon} size={17} style={{ color: info.color }} />
       </div>
       <div className="min-w-0 flex-1">
         <div className="mb-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-          <span className="title-small text-ink">{info.name}</span>
+          <span className="title-small" style={{ color: role === "prosecutor" || role === "defense" ? info.color : "var(--ink)" }}>{info.name}</span>
           {meta && <span className="body-small text-muted">{meta}</span>}
         </div>
-        <div className={`body-medium rounded-[20px] rounded-tl-[4px] px-4 py-3 ${emphasis ? "bg-accent-wash text-on-accent-wash" : "bg-surface text-ink"}`}>{children}</div>
+        <div className={`body-medium rounded-[18px] rounded-tl-[6px] border px-4 py-3 text-ink ${emphasis ? "border-line bg-surface-container shadow-[var(--shadow-2)]" : "border-line bg-surface"}`}>{children}</div>
       </div>
     </motion.div>
   );
@@ -199,7 +201,7 @@ function PassageList({ passages }: { passages: Passage[] }) {
   return (
     <ul className="flex flex-col gap-2">
       {passages.map((passage, index) => (
-        <motion.li key={`${passage.doc_id}-${index}`} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.04, ease: M3_EASE.emphasizedDecelerate }} className="rounded-xl bg-surface-2 px-3 py-2.5">
+        <motion.li key={`${passage.doc_id}-${index}`} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.04, ease: M3_EASE.emphasizedDecelerate }} className="rounded-xl border border-line bg-surface-container px-3 py-2.5">
           <div className="flex flex-wrap items-baseline gap-x-2">
             <span className="title-small text-ink">{passage.case_name}</span>
             {passage.cite && <span className="tnum body-small text-ink-2">{passage.cite}</span>}
@@ -354,14 +356,14 @@ export function DebateThread({ debate, maxRounds }: { debate: Debate; maxRounds:
 
           {round.prosecutor && (
             <Message role="prosecutor" meta="argues the position">
-              <p className="whitespace-pre-wrap">{round.prosecutor.argument || "No argument was produced."}</p>
+              {round.prosecutor.argument ? <p className="whitespace-pre-wrap">{round.prosecutor.argument}</p> : <p className="text-ink-2">No argument this round: the language model did not answer in time, usually because it was busy. The debate went on without it.</p>}
               <CitationChips citations={round.prosecutor.citations} />
             </Message>
           )}
 
           {round.defense && (
             <Message role="defense" meta={round.defense.concede ? "concedes the point" : `challenge strength ${num(round.defense.challenge_strength)}`}>
-              <p className="whitespace-pre-wrap">{round.defense.argument || "No counter-argument was produced."}</p>
+              {round.defense.argument ? <p className="whitespace-pre-wrap">{round.defense.argument}</p> : <p className="text-ink-2">No counter-argument this round: the language model did not answer in time, usually because it was busy. The debate went on without it.</p>}
               {round.defense.challenges.length > 0 && (
                 <ul className="mt-2 list-disc pl-5 text-ink-2">
                   {round.defense.challenges.slice(0, 4).map((challenge, index) => (
@@ -411,7 +413,7 @@ export function DebateThread({ debate, maxRounds }: { debate: Debate; maxRounds:
         <Message role="judge" meta="final verdict" emphasis>
           <div className="grid gap-5 sm:grid-cols-[1fr_auto] sm:items-center">
             <div className="min-w-0">
-              <p className="body-large whitespace-pre-wrap">{debate.judge.final_answer || debate.judge.verdict}</p>
+              <p className="font-display whitespace-pre-wrap text-[20px] leading-[30px] text-ink">{debate.judge.final_answer || debate.judge.verdict}</p>
               {debate.judge.reasoning && debate.judge.reasoning !== debate.judge.final_answer && (
                 <div className="mt-3">
                   <Disclosure summary="Judge's reasoning">
@@ -484,7 +486,7 @@ const WORKING: Partial<Record<StageName, string>> = {
 
 function TypingDots({ stage }: { stage: StageName }) {
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="body-medium flex items-center gap-3 pl-[52px] text-ink-2" aria-live="polite">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="body-medium flex items-center gap-3 pl-12 text-ink-2" aria-live="polite">
       <span className="flex gap-1" aria-hidden>
         {[0, 1, 2].map((dot) => (
           <motion.span key={dot} className="block h-1.5 w-1.5 rounded-full bg-accent" animate={{ y: [0, -4, 0], opacity: [0.4, 1, 0.4] }} transition={{ duration: 0.9, repeat: Infinity, delay: dot * 0.15 }} />
@@ -497,11 +499,8 @@ function TypingDots({ stage }: { stage: StageName }) {
 
 export function UserBubble({ text }: { text: string }) {
   return (
-    <motion.div initial={{ opacity: 0, y: 12, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={spring} className="flex justify-end gap-3">
-      <div className="body-large max-w-[80%] rounded-[20px] rounded-tr-[4px] bg-accent px-4 py-2.5 text-accent-ink">{text}</div>
-      <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary-container text-on-secondary-container" aria-hidden>
-        <Icon name="person" size={20} fill />
-      </div>
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={spring} className="flex justify-end">
+      <div className="body-large max-w-[85%] rounded-[18px] rounded-tr-[6px] bg-accent px-4 py-2.5 text-accent-ink sm:max-w-[75%]">{text}</div>
     </motion.div>
   );
 }

@@ -13,22 +13,126 @@ except ImportError:
     torch = None
 from typing import Tuple, Any
 
-from config import MODEL_NAME, EMBEDDER_NAME
+import re
+import time
+
+from config import MODEL_NAME, EMBEDDER_NAME, LLM_BACKEND, LLM_API_BASE_URL, LLM_API_KEY, LLM_API_MODEL
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+_INST_TAGS = re.compile(r"\s*\[/?INST\]\s*")
+
+
+class OpenAICompatibleLLM:
+    """A chat model behind an OpenAI-compatible API (FreeLLMAPI, OpenRouter, vLLM, ...).
+
+    Drop-in for the local pipeline: invoke(prompt) returns the reply text. The prompts are
+    written in Mistral's [INST] format, so the tags are stripped before sending.
+    """
+
+    def __init__(self, base_url: str, api_key: str, model: str, temperature: float = 0.1,
+                 max_tokens: int = 1536, timeout: float = 180.0, max_retries: int = 4) -> None:
+        import requests
+
+        self._session = requests.Session()
+        self._session.headers.update({"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"})
+        self.url = f"{base_url.rstrip('/')}/chat/completions"
+        self.model = model
+        self.temperature = temperature
+        self.max_tokens = max_tokens
+        self.timeout = timeout
+        self.max_retries = max_retries
+        self.reasoning_effort = os.environ.get("LEXAGENT_LLM_REASONING_EFFORT", "low").strip()
+
+    def _body(self, text: str, with_reasoning: bool) -> dict:
+        body = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": "Follow the instructions exactly. When asked for JSON, reply with one JSON object and nothing else."},
+                {"role": "user", "content": text},
+            ],
+            "temperature": self.temperature,
+            "max_tokens": self.max_tokens,
+        }
+        if with_reasoning and self.reasoning_effort:
+            body["reasoning_effort"] = self.reasoning_effort
+        return body
+
+    def invoke(self, prompt: str, **_: Any) -> str:
+        text = _INST_TAGS.sub("\n", str(prompt)).strip()
+        with_reasoning = True
+        last_error = ""
+        rate_waits = [3, 6, 12, 20]  # a free tier's per-minute limit usually resets within this
+        attempt = 0
+        while True:
+            wait = None
+            try:
+                response = self._session.post(self.url, json=self._body(text, with_reasoning), timeout=self.timeout)
+            except Exception as e:  # network error: retry
+                last_error = f"{type(e).__name__}: {e}"
+            else:
+                if response.status_code == 200:
+                    data = response.json()
+                    choice = (data.get("choices") or [{}])[0]
+                    message = choice.get("message") or {}
+                    content = (message.get("content") or "").strip()
+                    if not content or choice.get("finish_reason") == "length":
+                        logger.warning("LLM reply %s (finish_reason=%s, usage=%s, %d chars)",
+                                       "empty" if not content else "cut off at max_tokens",
+                                       choice.get("finish_reason"), data.get("usage"), len(content))
+                    return content
+                last_error = f"HTTP {response.status_code}: {response.text[:300]}"
+                if response.status_code == 400 and with_reasoning:
+                    with_reasoning = False  # some providers reject reasoning_effort; retry without it
+                    continue
+                if response.status_code in (401, 403, 404):
+                    raise RuntimeError(f"LLM API refused the request ({last_error}). Check LEXAGENT_LLM_API_KEY / LEXAGENT_LLM_MODEL.")
+                if response.status_code == 429:
+                    if not rate_waits:
+                        break
+                    try:
+                        wait = min(float(response.headers.get("Retry-After", "")), 30.0)
+                    except ValueError:
+                        wait = None
+                    planned = rate_waits.pop(0)
+                    wait = wait if wait and wait > 0 else planned
+                    logger.info("LLM rate-limited; waiting %.0fs before retrying", wait)
+            attempt += 1
+            if wait is None:
+                if attempt > self.max_retries:
+                    break
+                wait = min(2 ** (attempt - 1), 20)
+            time.sleep(wait)
+        raise RuntimeError(f"LLM API call failed: {last_error}")
+
+    __call__ = invoke
+
+
+def load_api_llm() -> OpenAICompatibleLLM:
+    """The language model behind an OpenAI-compatible endpoint (see LEXAGENT_LLM_* in config.py)."""
+    if not LLM_API_KEY:
+        raise RuntimeError("LEXAGENT_LLM_API_KEY is not set. Put your FreeLLMAPI unified key in V3_with_CAP_as_main/.env.")
+    llm = OpenAICompatibleLLM(
+        LLM_API_BASE_URL, LLM_API_KEY, LLM_API_MODEL,
+        max_tokens=int(os.environ.get("LEXAGENT_LLM_MAX_TOKENS", "1536")),
+    )
+    logger.info("Using API model %s at %s", LLM_API_MODEL, LLM_API_BASE_URL)
+    return llm
+
 
 def load_mistral_7b() -> Tuple[Any, Any, Any]:
-    """Load Mistral-7B-Instruct-v0.3 in NF4 4-bit quantization.
-    
-    Uses BitsAndBytes NF4 quantization with double quantization for
-    optimal memory efficiency on T4 16GB. Expected VRAM: ~5.2GB.
-    
+    """Load the generator. With LLM_BACKEND="api" this returns the API client instead of Mistral.
+
+    Local mode loads Mistral-7B-Instruct-v0.3 in NF4 4-bit quantization
+    (BitsAndBytes, double quantization). Expected VRAM: ~5.2GB.
+
     Returns:
         Tuple of (model, tokenizer, llm_pipeline).
     """
     use_mock = os.environ.get("LEXAGENT_MOCK_LLM", "0") == "1"
+    if LLM_BACKEND == "api" and not use_mock:
+        return None, None, load_api_llm()
 
     cuda_available = torch is not None and torch.cuda.is_available()
     if not cuda_available and not use_mock:

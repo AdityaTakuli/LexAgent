@@ -1,0 +1,16 @@
+# Packages for the web server and corpus build when the LLM is an API (FreeLLMAPI).
+# No GPU / Mistral packages. Install PyTorch CPU first:
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+fastapi>=0.110
+uvicorn>=0.29
+requests>=2.32.0
+numpy>=1.24.0
+sentence-transformers>=2.6.0
+transformers>=4.40.0
+chromadb>=0.4.22
+rank-bm25>=0.2.2
+fuzzywuzzy>=0.18.0
+python-Levenshtein>=0.21.0
+langgraph>=0.1.0
+pymupdf>=1.24.0
+tqdm>=4.66.0

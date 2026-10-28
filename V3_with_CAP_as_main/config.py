@@ -9,6 +9,23 @@ Modern Era (Volumes 300 to 585), Full CAP (Volumes 1 to 600+), or custom ranges.
 import os
 import sys
 
+
+def _load_dotenv(path: str) -> None:
+    """Read KEY=VALUE lines from a local .env file. Variables already set in the shell win."""
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, value = line.split("=", 1)
+                os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+    except OSError:
+        pass
+
+
+_load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
+
 # ══════════════════════════════════════════════════════
 # REPRODUCIBILITY & SEED CONTROL
 # ══════════════════════════════════════════════════════
@@ -131,8 +148,21 @@ CAP_CHECKPOINT_INTERVAL = int(os.environ.get("LEXAGENT_CHECKPOINT_INTERVAL", "64
 # ══════════════════════════════════════════════════════
 # MODELS
 # ══════════════════════════════════════════════════════
-MODEL_NAME     = "mistralai/Mistral-7B-Instruct-v0.3"
+MODEL_NAME     = "mistralai/Mistral-7B-Instruct-v0.3"   # used when LLM_BACKEND is "local"
 EMBEDDER_NAME  = "nlpaueb/legal-bert-base-uncased"
+
+# Which language model writes the arguments and the verdict:
+#   "api"   an OpenAI-compatible endpoint, e.g. FreeLLMAPI (default when LEXAGENT_LLM_API_KEY is set)
+#   "local" Mistral-7B on this machine's GPU (MODEL_NAME above)
+LLM_API_BASE_URL = os.environ.get("LEXAGENT_LLM_BASE_URL", "http://localhost:3001/v1").rstrip("/")
+LLM_API_KEY      = os.environ.get("LEXAGENT_LLM_API_KEY", "")
+LLM_API_MODEL    = os.environ.get("LEXAGENT_LLM_MODEL", "gpt-oss-120b")
+LLM_BACKEND      = os.environ.get("LEXAGENT_LLM_BACKEND", "api" if LLM_API_KEY else "local").lower()
+ACTIVE_LLM_NAME  = LLM_API_MODEL if LLM_BACKEND == "api" else MODEL_NAME
+# Models the chat page offers in its model switch (API backend only). The first is LLM_API_MODEL.
+LLM_API_MODELS   = list(dict.fromkeys(
+    [LLM_API_MODEL] + [m.strip() for m in os.environ.get("LEXAGENT_LLM_MODELS", "gemini-3.6-flash").split(",") if m.strip()]
+))
 
 # ══════════════════════════════════════════════════════
 # RETRIEVAL PARAMETERS

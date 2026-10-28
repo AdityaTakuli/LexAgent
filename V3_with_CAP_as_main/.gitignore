@@ -41,6 +41,7 @@ scratch/
 ui/.node/
 node_modules/
 ui/web/dist/
+ui/web/dist-site/
 !ui/web/*.json
 !ui/sample_transcript.json
 
@@ -50,3 +51,6 @@ paper/.tectonic/
 # rendered page images (a visual check, rebuilt by paper/render_pages.py) and the TeX build log
 paper/generated/pages/
 paper/*.log
+
+# Local secrets (FreeLLMAPI key)
+.env

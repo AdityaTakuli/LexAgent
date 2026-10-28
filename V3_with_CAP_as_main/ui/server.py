@@ -22,6 +22,7 @@ import argparse
 import json
 import os
 import queue
+import re
 import subprocess
 import sys
 import threading
@@ -40,6 +41,9 @@ from fastapi.staticfiles import StaticFiles  # noqa: E402
 from pydantic import BaseModel  # noqa: E402
 
 from config import (  # noqa: E402
+    ACTIVE_LLM_NAME,
+    LLM_API_MODELS,
+    LLM_BACKEND,
     CAP_CHUNK_CHECKPOINT_PATH,
     CAP_DOWNLOAD_CHECKPOINT_PATH,
     CASE_CATALOG_PATH,
@@ -47,7 +51,6 @@ from config import (  # noqa: E402
     DDC_MAX_ROUNDS,
     EMBEDDER_NAME,
     INDEXING_CHECKPOINT_PATH,
-    MODEL_NAME,
     NLI_MODEL_NAME,
     RESULTS_DIR,
     TAU_ACCEPTANCE_THRESHOLD,
@@ -81,6 +84,9 @@ class Engine:
         self.message = "The model is not loaded yet."
         self.loaded_seconds: Optional[float] = None
         self.graph = None
+        self.graphs: Dict[str, Any] = {}  # model name -> debate graph (API backend: one per model)
+        self._components: Optional[dict] = None
+        self._memory = None
         self._load_lock = threading.Lock()
         self.run_lock = threading.Lock()
 
@@ -105,11 +111,34 @@ class Engine:
                 self.graph = build_lexagent_graph(
                     components["llm"], components["hybrid"], components["cce"], components["ddc"], memory, components["embedder"]
                 )
+                self._components, self._memory = components, memory
+                self.graphs = {ACTIVE_LLM_NAME: self.graph}
                 self.loaded_seconds = round(time.monotonic() - started, 1)
                 self.state, self.message = "ready", f"Ready (loaded in {self.loaded_seconds:.0f}s)."
             except Exception as e:
                 self.state, self.message = "error", f"{type(e).__name__}: {e}"
                 raise
+
+    def graph_for(self, model: Optional[str]) -> Any:
+        """The debate graph that writes with `model`. Search, citation checks and the debate itself
+        are shared; only the language model and the answer cache differ per model."""
+        if not model or model == ACTIVE_LLM_NAME or LLM_BACKEND != "api":
+            return self.graph
+        with self._load_lock:
+            if model not in self.graphs:
+                import copy
+
+                from src.graph.lexagent_graph import build_lexagent_graph
+                from src.novel.adaptive_memory import AdaptiveMemory
+
+                c = self._components
+                llm = copy.copy(c["llm"])  # same endpoint, key and settings
+                llm.model = model
+                safe = re.sub(r"[^A-Za-z0-9_-]", "_", model)
+                # Its own answer cache, so a question answered by one model is not replayed for another.
+                memory = AdaptiveMemory(namespace=f"ui_chat_{safe}", client=self._memory.client)
+                self.graphs[model] = build_lexagent_graph(llm, c["hybrid"], c["cce"], c["ddc"], memory, c["embedder"])
+            return self.graphs[model]
 
     def load_in_background(self) -> None:
         if self.state in ("cold", "error"):
@@ -221,16 +250,17 @@ def _events_for(node: str, update: dict, round_number: int) -> List[dict]:
     return []
 
 
-def run_debate(query: str) -> Iterator[dict]:
+def run_debate(query: str, model: Optional[str] = None) -> Iterator[dict]:
     """Run one debate and yield UI events as each stage finishes."""
     started = time.monotonic()
     if ENGINE.state != "ready":
         yield {"type": "stage", "stage": "loading", "message": "Loading the corpus and the models. The first question takes about two minutes."}
         ENGINE.load()
-    yield {"type": "stage", "stage": "memory_check", "round": 1}
+    model = model or ACTIVE_LLM_NAME
+    yield {"type": "stage", "stage": "memory_check", "round": 1, "model": model}
 
     round_number = 1
-    for chunk in ENGINE.graph.stream(_initial_state(query), stream_mode="updates"):
+    for chunk in ENGINE.graph_for(model).stream(_initial_state(query), stream_mode="updates"):
         for node, update in chunk.items():
             for event in _events_for(node, update, round_number):
                 yield event
@@ -289,7 +319,7 @@ def _corpus_stats() -> dict:
             {"name": "Chunk", "detail": "raw JSON into retrieval chunks", "counts": chunk.get("counts") or {}, "updated_at": chunk.get("updated_at")},
             {"name": "Index", "detail": "chunks into BM25 and ChromaDB", "indexed": indexing.get("last_indexed_index"), "total": indexing.get("total_chunks"), "updated_at": indexing.get("updated_at")},
         ],
-        "models": {"generator": MODEL_NAME, "embedder": EMBEDDER_NAME, "nli": NLI_MODEL_NAME, "tau": TAU_ACCEPTANCE_THRESHOLD, "max_rounds": DDC_MAX_ROUNDS},
+        "models": {"generator": ACTIVE_LLM_NAME, "embedder": EMBEDDER_NAME, "nli": NLI_MODEL_NAME, "tau": TAU_ACCEPTANCE_THRESHOLD, "max_rounds": DDC_MAX_ROUNDS},
     }
     _CACHE.update(corpus=stats, corpus_stamp=stamp)
     return stats
@@ -316,16 +346,24 @@ def _gpu() -> Optional[dict]:
 # HTTP API
 # ══════════════════════════════════════════════════════
 app = FastAPI(title="LexAgent UI", docs_url=None, redoc_url=None)
-app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"], allow_methods=["*"], allow_headers=["*"])
+# Pages served from another origin (the Vite dev server, or the public site) may call the API.
+# Extra origins: LEXAGENT_ALLOWED_ORIGINS="https://a.example,https://b.example"
+ALLOWED_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"] + [
+    origin.strip().rstrip("/") for origin in os.environ.get("LEXAGENT_ALLOWED_ORIGINS", "").split(",") if origin.strip()
+]
+app.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS, allow_methods=["*"], allow_headers=["*"])
 
 
 class ChatRequest(BaseModel):
     query: str
+    model: Optional[str] = None  # one of LLM_API_MODELS; the default model when left out
 
 
 @app.get("/api/status")
 def api_status() -> dict:
-    return {"engine": ENGINE.status(), "gpu": _gpu(), "corpus": {key: _corpus_stats()[key] for key in ("chunks", "volumes_indexed", "reports")},
+    return {"engine": ENGINE.status(),
+            "models": {"options": LLM_API_MODELS if LLM_BACKEND == "api" else [ACTIVE_LLM_NAME], "default": ACTIVE_LLM_NAME}, "gpu": _gpu() if LLM_BACKEND == "local" else None,  # only a local model needs the GPU
+            "corpus": {key: _corpus_stats()[key] for key in ("chunks", "volumes_indexed", "reports")},
             "sample_transcript": os.path.exists(SAMPLE_TRANSCRIPT)}
 
 
@@ -438,6 +476,10 @@ def api_chat(request: ChatRequest) -> StreamingResponse:
     query = request.query.strip()
     if not query:
         raise HTTPException(status_code=400, detail="The question is empty.")
+    model = request.model or ACTIVE_LLM_NAME
+    allowed = LLM_API_MODELS if LLM_BACKEND == "api" else [ACTIVE_LLM_NAME]
+    if model not in allowed:
+        raise HTTPException(status_code=400, detail=f"Unknown model {model!r}. Choose one of: {', '.join(allowed)}.")
     if not ENGINE.run_lock.acquire(blocking=False):
         raise HTTPException(status_code=409, detail="Another question is being answered. One debate runs at a time.")
 
@@ -447,7 +489,7 @@ def api_chat(request: ChatRequest) -> StreamingResponse:
 
     def worker() -> None:
         try:
-            for event in run_debate(query):
+            for event in run_debate(query, model):
                 event["t"] = round(time.monotonic() - started, 2)
                 transcript.append(event)
                 events.put(event)
@@ -459,7 +501,7 @@ def api_chat(request: ChatRequest) -> StreamingResponse:
             if transcript and transcript[-1].get("type") == "done":
                 try:
                     os.makedirs(TRANSCRIPT_DIR, exist_ok=True)
-                    record = {"query": query, "recorded_at": datetime.now(timezone.utc).isoformat(), "events": transcript}
+                    record = {"query": query, "model": model, "recorded_at": datetime.now(timezone.utc).isoformat(), "events": transcript}
                     name = datetime.now().strftime("%Y%m%d_%H%M%S") + ".json"
                     for target in (os.path.join(TRANSCRIPT_DIR, name), os.path.join(TRANSCRIPT_DIR, "latest.json")):
                         with open(target, "w", encoding="utf-8") as handle:

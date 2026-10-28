@@ -41,7 +41,7 @@ export interface CitationCheck {
 export type StageName = "loading" | "memory_check" | "retrieve" | "prosecutor" | "defense" | "cce" | "reflection" | "ddc" | "judge" | "memory_store";
 
 export type DebateEvent =
-  | { type: "stage"; stage: StageName; round?: number; message?: string; t?: number }
+  | { type: "stage"; stage: StageName; round?: number; message?: string; model?: string; t?: number }
   | { type: "memory"; hit: boolean; answer?: string; t?: number }
   | { type: "retrieval"; round: number; passages: Passage[]; t?: number }
   | { type: "prosecutor"; round: number; argument: string; citations: Citation[]; t?: number }
@@ -86,6 +86,7 @@ export interface Status {
   gpu: { name: string; memory_total_mb: number; memory_used_mb: number; utilization: number } | null;
   corpus: { chunks: number; volumes_indexed: number; reports: number };
   sample_transcript: boolean;
+  models?: { options: string[]; default: string };
 }
 
 export interface RunSummary {
@@ -191,8 +192,50 @@ export interface Transcript {
   events: DebateEvent[];
 }
 
+// Where the API lives. By default the same origin (ui/server.py serves both). For a page hosted
+// apart from the API, set at build time either:
+//   VITE_API_BASE        a fixed address, e.g. https://api.example.com
+//   VITE_API_CONFIG_URL  a JSON file {"apiBase": "..."} read at run time, for an address that
+//                        changes (a tunnel). An empty apiBase means the backend is offline.
+const FIXED_BASE = ((import.meta.env.VITE_API_BASE as string | undefined) ?? "").replace(/\/$/, "");
+const CONFIG_URL = import.meta.env.VITE_API_CONFIG_URL as string | undefined;
+export const BACKEND_OFFLINE = "The LexAgent backend is offline right now. Try again later, or replay a recorded debate.";
+
+let basePromise: Promise<string> | null = null;
+
+function apiBase(): Promise<string> {
+  if (!basePromise) {
+    basePromise = !CONFIG_URL
+      ? Promise.resolve(FIXED_BASE)
+      : fetch(`${CONFIG_URL}?t=${Date.now()}`, { cache: "no-store" })
+          .then((response): Promise<{ apiBase?: string }> | { apiBase?: string } => (response.ok ? response.json() : {}))
+          .then((config) => (config.apiBase ?? "").replace(/\/$/, ""))
+          .catch(() => "");
+  }
+  return basePromise;
+}
+
+/** fetch() against the API. When the address comes from the config file and the call cannot reach
+ *  the backend, forget the address so the next call reads the file again (the tunnel may have moved). */
+async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
+  const base = await apiBase();
+  if (CONFIG_URL && !base) {
+    basePromise = null;
+    throw new Error(BACKEND_OFFLINE);
+  }
+  try {
+    return await fetch(base + path, init);
+  } catch (error) {
+    if (CONFIG_URL && !(error instanceof DOMException && error.name === "AbortError")) {
+      basePromise = null;
+      throw new Error(BACKEND_OFFLINE);
+    }
+    throw error;
+  }
+}
+
 async function getJson<T>(path: string): Promise<T> {
-  const response = await fetch(path);
+  const response = await apiFetch(path);
   if (!response.ok) throw new Error(`${path}: ${response.status}`);
   return response.json() as Promise<T>;
 }
@@ -202,16 +245,27 @@ export const api = {
   overview: () => getJson<Overview>("/api/overview"),
   cases: () => getJson<{ cases: CaseRow[] }>("/api/cases"),
   suggestions: () => getJson<{ suggestions: { topic: string; query: string }[] }>("/api/suggestions"),
-  sampleTranscript: () => getJson<Transcript>("/api/transcripts/sample"),
-  loadEngine: () => fetch("/api/engine/load", { method: "POST" }),
+  // Falls back to the copy bundled with the page, so the replay works while the backend is offline.
+  sampleTranscript: () =>
+    getJson<Transcript>("/api/transcripts/sample").catch(
+      async () => (await import("../../../sample_transcript.json")).default as unknown as Transcript,
+    ),
+  loadEngine: () => apiFetch("/api/engine/load", { method: "POST" }),
 };
 
 /** Ask a question and receive the debate stage by stage (Server-Sent Events over a POST). */
-export async function streamDebate(query: string, onEvent: (event: DebateEvent) => void, signal?: AbortSignal): Promise<void> {
-  const response = await fetch("/api/chat", {
+/** Display names for the language models the server offers. */
+const MODEL_LABELS: Record<string, string> = {
+  "gpt-oss-120b": "GPT-OSS 120B",
+  "gemini-3.6-flash": "Gemini 3.6 Flash",
+};
+export const modelLabel = (model: string): string => MODEL_LABELS[model] ?? model;
+
+export async function streamDebate(query: string, onEvent: (event: DebateEvent) => void, signal?: AbortSignal, model?: string): Promise<void> {
+  const response = await apiFetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query }),
+    body: JSON.stringify(model ? { query, model } : { query }),
     signal,
   });
   if (!response.ok || !response.body) {

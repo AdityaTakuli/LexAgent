@@ -3,6 +3,7 @@
 
 import re
 import json
+import time
 from typing import List, Dict, Any
 from config import LEDGER_EVIDENCE_CHARS
 from src.agents.state import LexAgentState, debate_protocol
@@ -18,6 +19,38 @@ from src.novel.ledger import RELIABLE_TIERS, clean_name, format_for_judge
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+def _ask_judge(llm, prompt: str, fallback_prompt: str, attempts: int = 3) -> dict:
+    """Ask for the ruling; retry when the reply is empty or not a readable ruling.
+
+    A busy free-tier endpoint can return nothing, or a reply cut short. Scoring that as a ruling
+    gives confidence 0 even when every citation checked out, so it is asked again instead.
+    """
+    parsed: dict = {}
+    for attempt in range(1, attempts + 1):
+        raw = _invoke_llm(llm, prompt, fallback_prompt=fallback_prompt)
+        parsed = _safe_parse_json(raw, fallback_key="verdict")
+        if not isinstance(parsed, dict):
+            parsed = {}
+        if "verified_citations" in parsed or "confidence" in parsed:
+            return parsed
+        logger.warning("Judge reply unusable (attempt %d/%d, %d chars): %r",
+                       attempt, attempts, len(raw or ""), (raw or "")[:200])
+        if attempt < attempts:
+            time.sleep(8 * attempt)
+    return parsed
+
+
+def _named_in_ruling(parsed: dict, names: List[str]) -> List[str]:
+    """Checked case names the judge wrote into its ruling text but left out of verified_citations."""
+    text = " ".join(str(parsed.get(k, "") or "") for k in ("verdict", "legal_holding", "reasoning")).lower()
+    found = []
+    for name in names:
+        tokens = set(re.findall(r"\b[a-z]{3,}\b", name.lower())) - {"the", "and", "for", "state", "court", "united", "states"}
+        if tokens and all(t in text for t in tokens):
+            found.append(name)
+    return found
 
 
 def _format_debate_history(history: List[Dict[str, Any]]) -> str:
@@ -88,7 +121,7 @@ def _judge_from_ledger(state: LexAgentState) -> dict:
         "You are the SENIOR JUDGE in a legal debate. Respond ONLY in valid JSON.",
         f"Deliver ruling on: {state['query']}.\nProvide JSON with 'verdict', 'legal_holding', 'verified_citations', 'uncertain_citations', 'rejected_citations', 'confidence', 'reasoning'."
     )
-    parsed = _safe_parse_json(_invoke_llm(state["llm"], prompt, fallback_prompt=fallback_prompt), fallback_key="verdict")
+    parsed = _ask_judge(state["llm"], prompt, fallback_prompt)
 
     verified, uncertain, seen = [], [], set()
 
@@ -125,6 +158,18 @@ def _judge_from_ledger(state: LexAgentState) -> dict:
         else:
             logger.info("Judge citation '%s' is %s in the citation record; not counted", name, entry.get("tier"))
 
+    if not verified:
+        # The judge argued from checked decisions but did not list them: count those it named.
+        reliable = [e.get("case_name", "") for e in ledger.values() if e.get("tier") in RELIABLE_TIERS]
+        for name in _named_in_ruling(parsed, reliable):
+            entry = _find_in_ledger(name, ledger)
+            key = (entry or {}).get("resolved_doc_id") or clean_name(name)
+            if entry and key not in seen:
+                seen.add(key)
+                score = float(entry.get("ccs") or 0.0)
+                verified.append(record(entry, {"case_name": name}, score if score > 0 else 0.85))
+                logger.info("Judge named checked decision '%s' in its ruling; counted as verified", name)
+
     for given in parsed.get("uncertain_citations", []) or []:
         if not isinstance(given, dict):
             continue
@@ -157,6 +202,8 @@ def _judge_from_ledger(state: LexAgentState) -> dict:
     else:
         confidence = round(min(self_rating, 0.20), 2)
 
+    logger.info("Judge result: keys=%s self_rating=%.2f verified=%d uncertain=%d confidence=%.2f",
+                sorted(parsed.keys()), self_rating, len(verified), len(uncertain), confidence)
     # The parts of the confidence, reported next to the blended number.
     existing = [e for e in ledger.values() if e.get("tier") not in ("FABRICATED", "UNVERIFIABLE")]
     reliable = [e for e in existing if e.get("tier") in RELIABLE_TIERS]
@@ -214,8 +261,7 @@ def judge_node(state: LexAgentState) -> dict:
         f"Deliver ruling on: {state['query']}.\nProvide JSON with 'verdict', 'legal_holding', 'verified_citations', 'uncertain_citations', 'rejected_citations', 'confidence', 'reasoning'."
     )
 
-    raw = _invoke_llm(state["llm"], prompt, fallback_prompt=fallback_prompt)
-    parsed = _safe_parse_json(raw, fallback_key="verdict")
+    parsed = _ask_judge(state["llm"], prompt, fallback_prompt)
 
     use_cce = state.get("use_cce", True)
     verified_ccs_map = {}
@@ -234,7 +280,7 @@ def judge_node(state: LexAgentState) -> dict:
                 uncertain_ccs_map[c_name] = max(uncertain_ccs_map.get(c_name, 0.0), ccs_score if ccs_score > 0 else 0.50)
 
     verified = []
-    for c in parsed.get("verified_citations", []):
+    for c in parsed.get("verified_citations", []) or []:
         try:
             case_name = _clean_case_name(c.get("case_name", ""))
             if not case_name:
@@ -270,8 +316,15 @@ def judge_node(state: LexAgentState) -> dict:
         except (ValueError, TypeError) as e:
             logger.warning("Skipping malformed verified citation: %s (%s)", c, e)
 
+    if use_cce and not verified and verified_ccs_map:
+        # The judge argued from checked decisions but did not list them: count those it named.
+        for name in _named_in_ruling(parsed, list(verified_ccs_map)):
+            verified.append(CitationRecord(case_name=name.title(), court="Supreme Court", year=0, holding="",
+                                           self_confidence=verified_ccs_map[name], agent_source="judge"))
+            logger.info("Judge named checked decision '%s' in its ruling; counted as verified", name)
+
     uncertain = []
-    for c in parsed.get("uncertain_citations", []):
+    for c in parsed.get("uncertain_citations", []) or []:
         try:
             case_name = _clean_case_name(c.get("case_name", ""))
             if not case_name:
@@ -313,7 +366,8 @@ def judge_node(state: LexAgentState) -> dict:
         confidence = round(min(raw_model_conf, 0.35) if raw_model_conf > 0 else 0.20, 2)
     else:
         confidence = round(min(raw_model_conf, 0.20), 2)
-
+    logger.info("Judge result: keys=%s model_conf=%.2f verified=%d uncertain=%d confidence=%.2f",
+                sorted(parsed.keys()), raw_model_conf, len(verified), len(uncertain), confidence)
 
     return {
         "judge_verdict":              parsed.get("verdict", ""),

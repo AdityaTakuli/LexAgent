@@ -1,0 +1,92 @@
+% Comparison matrix: LexAgent against commercial tools, general methods,
+% legal research systems and its own baselines.
+% Usage in lexagent_ieee.tex (after \input{generated/results.tex}):
+%   \input{tables/comparison_matrix.tex}
+% Needs only tikz, booktabs and the \Res... macros the paper already loads.
+% Sources and notes for every cell: ../COMPARISON_MATRIX.md
+
+\providecommand{\cmFull}{\tikz[baseline=-0.6ex]\fill (0,0) circle (0.55ex);}
+\providecommand{\cmHalf}{\tikz[baseline=-0.6ex]{\draw (0,0) circle (0.55ex);\fill (0,-0.55ex) arc (-90:90:0.55ex) -- cycle;}}
+\providecommand{\cmNone}{\tikz[baseline=-0.6ex]\draw (0,0) circle (0.55ex);}
+\providecommand{\cmUnk}{?}
+\providecommand{\cmNA}{--}
+\providecommand{\cmGroup}[1]{\multicolumn{11}{@{}l}{\emph{#1}}\\}
+
+% ── Table A: capabilities ───────────────────────────────────────────────
+\begin{table*}[t]
+\caption{Comparison matrix: the same nine criteria for every system. C3 independent verifier, C4 citation existence checked against an authority catalog, C5 support of the claim checked against the cited text, C6 when the check runs, C7 a failed check leads to a corrected answer, C8 cross-query memory, C9 runs on open models. \cmFull\ yes, \cmHalf\ partial, \cmNone\ no, ? not reported, -- not applicable.}\label{tab:matrix}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3.2pt}
+\begin{tabular}{@{}lllcccccccc@{}}
+\toprule
+System & Domain & Retrieval & Agents & C3 & C4 & C5 & C6 & C7 & C8 & C9 \\
+\midrule
+\cmGroup{Commercial legal tools}
+Lexis+ AI                     & US law & proprietary RAG   & ?      & ? & \cmHalf$^{a}$ & ? & ? & ? & ? & \cmNone \\
+Westlaw AI-Assisted Research  & US law & proprietary RAG   & ?      & ? & \cmHalf$^{a}$ & ? & ? & ? & ? & \cmNone \\
+Ask Practical Law AI          & US law & proprietary RAG   & ?      & ? & ?             & ? & ? & ? & ? & \cmNone \\
+CoCounsel                     & US law & Westlaw-grounded  & ?      & ? & \cmHalf$^{a}$ & ? & ? & ? & ? & \cmNone \\
+Harvey                        & multi  & Lexis content     & ?      & ? & \cmHalf$^{a}$ & ? & ? & ? & ? & \cmNone \\
+\midrule
+\cmGroup{General anti-hallucination methods}
+Self-RAG~\cite{selfrag}           & general & dense, on demand & single & \cmNone & \cmNone & \cmHalf$^{b}$ & in-loop & \cmHalf & \cmNone & \cmFull \\
+CRAG~\cite{crag}                  & general & dense + web      & single & \cmFull$^{c}$ & \cmNone & \cmNone$^{c}$ & pre & \cmHalf & \cmNone & \cmFull \\
+CoVe~\cite{cove}                  & general & none             & single & \cmNone & \cmNone & \cmHalf$^{b}$ & post & \cmFull & \cmNone & \cmFull \\
+SelfCheckGPT~\cite{selfcheckgpt}  & general & none             & single & \cmNone & \cmNone & \cmHalf$^{b}$ & post & \cmNone & \cmNone & \cmFull \\
+Debate, Du et al.~\cite{du2024}   & general & none             & coop.  & \cmNone & \cmNone & \cmNone & --   & \cmFull & \cmNone & \cmNone \\
+Debate, Liang et al.~\cite{liang2024} & general & none         & adv.   & \cmNone & \cmNone & \cmNone & --   & \cmFull & \cmNone & \cmNone \\
+\midrule
+\cmGroup{Legal AI research systems}
+DISC-LawLLM~\cite{disclawllm}     & Chinese law & retrieval module & single & \cmNone & \cmNone & \cmNone & -- & \cmNone & \cmNone & \cmFull \\
+ChatLaw~\cite{chatlaw}            & Chinese law & KG + retrieval   & coop.  & \cmNone & \cmNone & \cmNone & -- & \cmNone & \cmNone & \cmFull \\
+LeAK-GraphRAG~\cite{leakgraphrag} & Chinese scholarship & semantic + graph & single & \cmNone & \cmNone & \cmNone & -- & \cmNone & \cmNone & ? \\
+HalluGraph~\cite{hallugraph}      & legal RAG   & given context    & single & \cmFull & \cmHalf$^{d}$ & \cmFull & post & \cmNone & \cmNone & ? \\
+Falkor-IRAC~\cite{falkorirac}     & Indian law  & IRAC graph       & verifier & \cmFull & \cmFull & \cmHalf & post & \cmNone$^{e}$ & \cmNone & ? \\
+AgentCourt~\cite{agentcourt}      & Chinese civil & dense (BGE-M3) & adv.   & \cmNone & \cmNone & \cmNone & -- & \cmHalf & \cmHalf$^{f}$ & \cmNone$^{g}$ \\
+PROClaim~\cite{proclaim}          & biomedical  & progressive RAG  & adv.   & \cmHalf & \cmNone & \cmHalf & in-loop & \cmFull & \cmNone & \cmNone \\
+\midrule
+\cmGroup{This work}
+Single-agent baseline             & US S.\,Ct. & BGE + BM25, RRF        & single & \cmNone & \cmNone & \cmNone & -- & \cmNone & \cmNone & \cmFull \\
+\sys, first version               & US S.\,Ct. & Legal-BERT + BM25, RRF & adv.   & \cmHalf$^{h}$ & \cmFull & \cmHalf$^{h}$ & in-loop & \cmFull & \cmHalf$^{i}$ & \cmFull \\
+\textbf{\sys, final}              & US S.\,Ct. & BGE + BM25, RRF        & adv.   & \cmFull & \cmFull & \cmFull & in-loop & \cmFull$^{j}$ & \cmHalf$^{i}$ & \cmFull \\
+\bottomrule
+\multicolumn{11}{@{}p{0.97\textwidth}@{}}{\scriptsize
+$^{a}$Answers link into a citator-backed database, yet 17--33\% of answers were found to hallucinate~\cite{magesh2025}.
+$^{b}$The checker is the generator itself.
+$^{c}$Grades the retrieved documents, not the claims of the answer.
+$^{d}$Entities checked against the source context, not an authority catalog.
+$^{e}$Unsupported outputs are rejected, not refined.
+$^{f}$Experience knowledge base across simulated cases; no citation-level record.
+$^{g}$Agents run on GPT-4o-mini.
+$^{h}$Support score not validated (stress-test AUC \ResStressAUC).
+$^{i}$Same-question verdict cache and citation risk index; removing them changed no measure significantly.
+$^{j}$Supported by the controller, but the final runs average \ResPaFinalRounds\ rounds.}
+\end{tabular}
+\end{table*}
+
+% ── Table B: what each system reports, on its own benchmark ─────────────
+\begin{table}[t]
+\caption{Headline results as reported by each source. Benchmarks and definitions differ, so rows are not comparable with each other.}\label{tab:matrixres}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{2.6pt}
+\begin{tabular}{@{}p{0.30\columnwidth}p{0.28\columnwidth}p{0.38\columnwidth}@{}}
+\toprule
+System & Benchmark & Reported result \\
+\midrule
+Lexis+ AI & 202 US legal queries~\cite{magesh2025} & 65\% accurate, $\approx$17\% halluc. \\
+Westlaw AI-AR & same & 42\% accurate, $\approx$33\% halluc. \\
+Ask Practical Law AI & same & 19\% accurate, 62\% incomplete \\
+ChatLaw & LawBench & +7.73\% over GPT-4 \\
+HalluGraph & legal RAG detection & AUC 0.979 / $\approx$0.89 \\
+AgentCourt & CourtBench & +12.1\% after 1{,}000 cases \\
+PROClaim & Check-COVID & 81.7\% accuracy \\
+Falkor-IRAC & 51 judgments & no numerical results \\
+\midrule
+\sys, final & \ResTestCases\ US S.\,Ct.\ questions & \ResPaFinalTargetAnswer\% answers on target; \ResPaFinalNotFoundAnswer\ non-existent cases in answers; \ResPaFinalSecondsPerCase\,s \\
+Baseline, 4 pass. & same & \ResPaBaseFourRTargetAnswer\% on target; \ResPaBaseFourRSecondsPerCase\,s \\
+\sys\ checker & held-out citations & test AUC \ResGateTestAUC \\
+\bottomrule
+\end{tabular}
+\end{table}
