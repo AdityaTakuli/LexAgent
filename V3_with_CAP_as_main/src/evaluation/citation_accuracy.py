@@ -1,8 +1,6 @@
 # LexAgent v3.0 | citation_accuracy.py
 """Citation Accuracy Score (CAS) — Semantic verification against CaseHOLD."""
 
-import os
-import sys
 
 try:
     from sentence_transformers import util
@@ -73,13 +71,11 @@ def compute_cas(predictions: list, ground_truth_data: list, embedder) -> dict:
         # Authority Precision & Recall
         target_case = gt.get("target_case", "").lower().strip()
         cites = pred.get("citations", []) or pred.get("verified_citations", []) or []
-        found_target = False
         for c in cites:
             total_citations += 1
             c_name = (c.get("case_name", "") if isinstance(c, dict) else getattr(c, "case_name", "")).lower().strip()
             if target_case and fuzz.ratio(c_name, target_case) >= 80:
                 matched_target_citations += 1
-                found_target = True
 
             tier = c.get("tier", "") if isinstance(c, dict) else getattr(c, "tier", "")
             if tier == "SUPPORTED":

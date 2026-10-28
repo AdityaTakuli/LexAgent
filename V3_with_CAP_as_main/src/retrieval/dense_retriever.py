@@ -1,9 +1,7 @@
 # LexAgent v3.0 | dense_retriever.py
 """Dense vector retrieval using ChromaDB and Legal-BERT embeddings."""
 
-import os
-import sys
-from typing import Any, List, Optional
+from typing import Any, List
 
 from config import TOP_K_DENSE
 from src.data.corpus_schema import CorpusDocument

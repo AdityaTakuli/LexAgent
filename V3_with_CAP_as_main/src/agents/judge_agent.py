@@ -2,7 +2,6 @@
 """Judge Agent — DVA+ Protocol."""
 
 import re
-import json
 import time
 from typing import List, Dict, Any
 from config import LEDGER_EVIDENCE_CHARS

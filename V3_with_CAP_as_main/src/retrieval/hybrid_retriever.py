@@ -6,10 +6,8 @@ via Reciprocal Rank Fusion (RRF). Builds an entity map of known case names
 and official citations for the Citation Confidence Engine (CCE).
 """
 
-import os
-import sys
 from collections import defaultdict
-from typing import Any, Dict, List, Optional
+from typing import Dict, List
 
 from config import RRF_K, TOP_K_DENSE, TOP_K_BM25
 from src.data.corpus_schema import CorpusDocument

@@ -7,7 +7,6 @@ import chromadb
 
 from config import (
     BM25_INDEX_PATH,
-    CHROMA_CORPUS_PATH,
     DRIVE_CHROMA_CORPUS_PATH,
     LOCAL_CHROMA_CORPUS_PATH,
     KNOWN_CASES_PATH,

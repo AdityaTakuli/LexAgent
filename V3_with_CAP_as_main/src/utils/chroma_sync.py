@@ -12,7 +12,7 @@ import shutil
 import sqlite3
 import sys
 import time
-from typing import Optional, Tuple
+from typing import Optional
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)

@@ -1,15 +1,13 @@
 # LexAgent v3.0 | lexagent_graph.py
 """LexAgent v3.0 — LangGraph StateGraph (DVA+ Protocol pipeline)."""
 
-import os
-import sys
 from typing import Any
 
 from langgraph.graph import StateGraph, END
 
 from src.agents.state import LexAgentState, debate_protocol
 from src.agents.prosecutor_agent import prosecutor_node
-from src.agents.defense_agent import defense_node, make_defense_node
+from src.agents.defense_agent import make_defense_node
 from src.agents.reflection_agent import reflection_node
 from src.agents.judge_agent import judge_node
 from src.novel.cce import CitationConfidenceEngine, make_cce_node

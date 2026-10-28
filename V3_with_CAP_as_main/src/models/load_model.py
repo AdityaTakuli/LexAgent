@@ -6,7 +6,6 @@ Legal-BERT embedder runs on CPU or GPU.
 """
 
 import os
-import sys
 try:
     import torch
 except ImportError:

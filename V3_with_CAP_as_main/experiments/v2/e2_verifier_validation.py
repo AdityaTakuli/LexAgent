@@ -23,8 +23,6 @@ Writes  data/results/v2/e2_verifier_validation/results.json   every candidate, d
     python experiments/v2/e2_verifier_validation.py
 """
 
-import contextlib
-import io
 import json
 import os
 import random
@@ -40,7 +38,7 @@ if BASE_DIR not in sys.path:
 import numpy as np  # noqa: E402
 
 import config  # noqa: E402
-from config import CCE_GATE_MIN_AUC, CCE_GATE_PATH, KNOWN_CASES_PATH, RESULTS_DIR, RRF_K  # noqa: E402
+from config import CCE_GATE_MIN_AUC, CCE_GATE_PATH, RESULTS_DIR, RRF_K  # noqa: E402
 
 OUT_DIR = os.path.join(RESULTS_DIR, "v2", "e2_verifier_validation")
 NLI_MODELS = [

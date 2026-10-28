@@ -135,7 +135,7 @@ python -m unittest discover -s tests -v
 
 ## ⚡ Running on an Offline Server with High-End Nvidia GPU
 
-This branch (`offline-run`) is pre-configured for high-end Nvidia GPUs (**A100**, **H100**, **RTX 4090**, **RTX 3090**, **A6000**):
+The defaults suit high-end Nvidia GPUs (**A100**, **H100**, **RTX 4090**, **RTX 3090**, **A6000**). To run the language model locally instead of through an API, set `LEXAGENT_LLM_BACKEND=local`:
 
 ```bash
 # 1. Set environment variables for offline / high-VRAM execution
@@ -157,9 +157,13 @@ python master_run.py --all --benchmark-limit 30 --ablation-limit 30
 
 ```text
 V3_with_CAP_as_main/
-├── config.py                           # Central configuration (all paths point to CAP)
-├── requirements.txt                    # Project dependencies
+├── config.py                           # Central configuration (all paths point to CAP); reads .env
+├── .env.example                        # Template for .env (LLM backend, API key, model)
+├── requirements.txt                    # Project dependencies (full research stack)
+├── requirements-server.txt             # Web server + API model on CPU only
 ├── README.md                           # This guide
+├── COMPARISON_MATRIX.md                # LexAgent against related systems
+├── Review.md                           # External review that started the audit
 ├── master_run.py                       # Single master execution runner (CLI + Interactive)
 ├── LexAgent_V3_Master_Execution.ipynb  # One-click Colab Master Notebook
 │
@@ -185,14 +189,16 @@ V3_with_CAP_as_main/
 │   ├── retrieval/                      # Hybrid retrieval over CAP
 │   │   ├── dense_retriever.py          # Legal-BERT ChromaDB retriever
 │   │   ├── bm25_retriever.py           # BM25 sparse retriever
-│   │   └── hybrid_retriever.py         # Reciprocal Rank Fusion (RRF k=60)
+│   │   ├── hybrid_retriever.py         # Reciprocal Rank Fusion (RRF k=60)
+│   │   └── retrieval_v2.py             # BGE embedder + word-token BM25 (final system)
 │   │
 │   ├── novel/                          # Core novel components
 │   │   ├── cce.py                      # CCE with CAP reporter & title verification
 │   │   ├── ddc.py                      # Dynamic Debate Controller
-│   │   └── adaptive_memory.py          # Semantic verdict cache & risk tracker
+│   │   ├── ledger.py                   # Per-debate ledger of verified citations
+│   │   └── adaptive_memory.py          # Verdict cache & citation risk tracker
 │   │
-│   ├── models/                         # Quantized Mistral-7B + Legal-BERT loader
+│   ├── models/                         # LLM (OpenAI-compatible API or local Mistral-7B) + embedders
 │   │   └── load_model.py
 │   │
 │   ├── graph/                          # LangGraph state machine
@@ -202,13 +208,18 @@ V3_with_CAP_as_main/
 │   │   ├── evaluator.py
 │   │   ├── citation_accuracy.py        # CAS
 │   │   ├── hallucination_rate.py       # HR
-│   │   └── debate_convergence.py       # DCR
+│   │   ├── dcr_metric.py               # DCR
+│   │   ├── rhr_metric.py               # RHR
+│   │   ├── stress_test.py              # Citation stress-test classes
+│   │   └── metrics_v2.py               # Post-audit measures (existence, cite correctness, grounding)
 │   │
 │   └── utils/
+│       ├── chroma_sync.py              # ChromaDB readiness checks and Colab sync
 │       └── logger.py
 │
 ├── runs/
 │   ├── build_db.py                     # Stage 3: index verified chunk caches (BM25 + ChromaDB)
+│   ├── build_retrieval_v2.py           # Second index for retrieval v2
 │   ├── phase1_run.py                   # Phase 1 retrieval test
 │   ├── phase2_run.py                   # Phase 2 fixed debate test
 │   └── phase3_run.py                   # Phase 3 full DVA+ debate test
@@ -219,10 +230,13 @@ V3_with_CAP_as_main/
 │   ├── run_ablation.py                 # 4-variant ablation study runner (--variants A2 re-runs one)
 │   ├── run_stress_test.py              # Citation stress test (no LLM)
 │   ├── run_cce_evidence_study.py       # Which passages should the citation checker read? (no LLM)
-│   └── bootstrap.py                    # Validated component loader
+│   ├── bootstrap.py                    # Validated component loader
+│   ├── forensics/                      # The forensic audit of the first evaluation
+│   └── v2/                             # Post-audit experiments (see experiments/v2/README.md)
 │
 ├── tests/                              # Unit tests: no network, GPU or model needed
 ├── ui/                                 # Web UI: FastAPI server + React app (see ui/README.md)
+├── deploy/                             # Hugging Face Space (Docker) and Cloudflare tunnel scripts
 └── paper/                              # IEEE-format paper, figures, and the script that fills in its numbers
 ```
 
@@ -242,7 +256,6 @@ Six repairs followed in two steps, and a new set of experiments on the repaired 
 | Verdict cache | answers only the identical question; off in evaluation |
 | Measures | existence, cite correctness, target cited and citation counts reported separately |
 | Citation checker | existence and holding support reported separately; the support verdict acts only after a support model has been validated on held-out citations |
-
 | Debate protocol (second step) | a ledger keeps what every round verified, the judge reads it, the controller stops when a citation is supported (`config.DEBATE_PROTOCOL = "ledger"`; the default stays `"v1"`) |
 | Retrieval (second step) | a second index with an embedder trained for retrieval and word-token BM25 (`runs/build_retrieval_v2.py`) |
 

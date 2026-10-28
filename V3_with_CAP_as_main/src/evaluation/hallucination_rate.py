@@ -1,8 +1,6 @@
 # LexAgent v3.0 | hallucination_rate.py
 """Hallucination Rate (HR) Evaluation Metric."""
 
-import os
-import sys
 from typing import List
 
 try:

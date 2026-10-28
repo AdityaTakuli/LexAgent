@@ -15,14 +15,12 @@ import sys
 import json
 import time
 import argparse
-from typing import List, Dict, Any
 
 from langgraph.graph import StateGraph, END
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from config import (
-    CHROMA_CORPUS_PATH,
     DRIVE_CHROMA_CORPUS_PATH,
     LOCAL_CHROMA_CORPUS_PATH,
     BM25_INDEX_PATH,
@@ -33,7 +31,7 @@ from config import (
 from src.utils.chroma_sync import ensure_chroma_ready
 from src.agents.state import LexAgentState
 from src.agents.prosecutor_agent import prosecutor_node
-from src.agents.defense_agent import defense_node, make_defense_node
+from src.agents.defense_agent import make_defense_node
 from src.agents.reflection_agent import reflection_node
 from src.agents.judge_agent import judge_node
 from src.novel.cce import CitationConfidenceEngine, make_cce_node
@@ -50,7 +48,7 @@ from src.retrieval.dense_retriever import DenseRetriever
 from src.retrieval.bm25_retriever import BM25Retriever
 from src.retrieval.hybrid_retriever import HybridRetriever
 from src.utils.logger import get_logger
-from experiments.benchmark_cases import BENCHMARK_30_CASES, BENCHMARK_100_CASES, get_benchmark_cases
+from experiments.benchmark_cases import get_benchmark_cases
 from experiments.run_25_cases_benchmark import evaluate_single_case
 
 logger = get_logger(__name__)

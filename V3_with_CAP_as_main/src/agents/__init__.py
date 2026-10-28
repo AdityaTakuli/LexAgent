@@ -9,5 +9,5 @@ __all__ = [
     "prosecutor_node",
     "defense_node",
     "reflection_node",
-    "judge_agent",
+    "judge_node",
 ]

@@ -7,7 +7,7 @@ Computes Evidence Overlap Ratio (EOR) to monitor echo-chamber effects.
 """
 
 import json
-from typing import List, Optional, Any, Set
+from typing import List, Any, Set
 from src.agents.state import LexAgentState
 from src.agents.prompts import SYSTEM_DEFENSE, USER_DEFENSE, format_mistral_prompt
 from src.agents.prosecutor_agent import (

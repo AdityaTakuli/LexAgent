@@ -3,10 +3,9 @@
 
 import json
 import os
-import sys
 from typing import Dict, List, Any
 
-from config import CASEHOLD_DATASET_PATH, LEGALBENCH_DATASET_PATH, DRIVE_BASE
+from config import CASEHOLD_DATASET_PATH, LEGALBENCH_DATASET_PATH
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)

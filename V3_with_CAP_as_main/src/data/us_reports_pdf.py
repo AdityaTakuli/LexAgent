@@ -38,7 +38,7 @@ from config import (
     US_REPORTS_PDF_DIR,
     US_REPORTS_PDF_URL,
 )
-from src.data.cap_checkpoint import COMPLETE, FAILED, UNAVAILABLE, StageCheckpoint, atomic_replace, atomic_write_json, utc_now
+from src.data.cap_checkpoint import COMPLETE, StageCheckpoint, atomic_replace, atomic_write_json, utc_now
 from src.data.cap_ingest import (
     RAW_COMPLETE,
     RAW_FAILED,

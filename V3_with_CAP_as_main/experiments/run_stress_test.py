@@ -9,7 +9,6 @@ import os
 import sys
 import json
 import argparse
-import pickle
 import chromadb
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -24,7 +23,7 @@ from src.utils.chroma_sync import ensure_chroma_ready
 from src.models.load_model import load_embedder
 from src.novel.cce import CitationConfidenceEngine
 from src.evaluation.stress_test import real_cases_outside_corpus, run_citation_stress_test
-from experiments.benchmark_cases import BENCHMARK_30_CASES, BENCHMARK_100_CASES, get_benchmark_cases, split_benchmark_by_source_text
+from experiments.benchmark_cases import get_benchmark_cases, split_benchmark_by_source_text
 
 
 def main(output_file: str = "citation_stress_test_results.json", limit: int = 100):

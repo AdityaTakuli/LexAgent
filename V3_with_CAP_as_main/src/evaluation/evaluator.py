@@ -1,8 +1,6 @@
 # LexAgent v3.0 | evaluator.py
 """Master Evaluator for LexAgent v3.0."""
 
-import os
-import sys
 
 from src.evaluation.hallucination_rate import compute_hallucination_rate
 from src.evaluation.citation_accuracy import compute_cas

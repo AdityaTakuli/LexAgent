@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from langgraph.graph import END, StateGraph
 from experiments.bootstrap import load_lexagent_components
 from src.agents.prosecutor_agent import prosecutor_node
-from src.agents.defense_agent import defense_node, make_defense_node
+from src.agents.defense_agent import make_defense_node
 from src.agents.reflection_agent import reflection_node
 from src.agents.judge_agent import judge_node
 from src.agents.state import LexAgentState

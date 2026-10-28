@@ -25,9 +25,6 @@ if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
 from config import (
-    CHROMA_CORPUS_PATH,
-    BM25_INDEX_PATH,
-    KNOWN_CASES_PATH,
     CAP_VOLUMES_MODE,
     CAP_CHECKPOINT_INTERVAL,
     DRIVE_BASE,
@@ -235,7 +232,7 @@ def interactive_phase_menu():
         if sub_choice == "0":
             break
 
-        custom_q = input(f"  Enter question (or press Enter for default): ").strip()
+        custom_q = input("  Enter question (or press Enter for default): ").strip()
         q = custom_q if custom_q else DEFAULT_TEST_QUERY
 
         if sub_choice == "1":

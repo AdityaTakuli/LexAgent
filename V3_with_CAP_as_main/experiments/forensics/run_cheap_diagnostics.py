@@ -38,7 +38,7 @@ import numpy as np  # noqa: E402
 
 from config import (  # noqa: E402
     BM25_INDEX_PATH, CHROMA_MEMORY_PATH, CORPUS_JSON_PATH, DRIVE_CHROMA_CORPUS_PATH, KNOWN_CASES_PATH,
-    LOCAL_CHROMA_CORPUS_PATH, MEMORY_CACHE_THRESHOLD, MEMORY_HIGH_RISK_CCS_THRESH, NLI_MODEL_NAME, RESULTS_DIR,
+    LOCAL_CHROMA_CORPUS_PATH, MEMORY_CACHE_THRESHOLD, NLI_MODEL_NAME, RESULTS_DIR,
     TOP_K_BM25, TOP_K_DENSE,
 )
 
@@ -447,7 +447,6 @@ def retrieval_diagnostic(cce, collection, embedder, cases, analysis):
                 "share": round(sum(1 for r in subset if predicate(r)) / max(1, len(subset)), 4)}
 
     debated = [r for r in rows if r["lexagent_debated"]]
-    found8 = [r for r in rows if r["rank_debate_first_round"] is not None]
     found4 = [r for r in rows if r["in_baseline_prompt_top4"]]
     return {
         "note": "Retrieval recomputed deterministically for the plain benchmark question (no LLM). The runs did not save "

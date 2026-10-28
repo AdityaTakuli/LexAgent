@@ -31,10 +31,8 @@ from config import (
     BM25_INDEX_PATH,
     CAP_BUILD_STATE_PATH,
     CASE_CATALOG_PATH,
-    CHROMA_CORPUS_PATH,
     DRIVE_CHROMA_CORPUS_PATH,
     LOCAL_CHROMA_CORPUS_PATH,
-    IS_COLAB,
     CORPUS_JSON_PATH,
     INDEXING_CHECKPOINT_PATH,
     KNOWN_CASES_PATH,
@@ -43,7 +41,6 @@ from config import (
 from src.utils.chroma_sync import (
     prepare_working_chroma,
     sync_chroma_to_drive,
-    clean_corrupted_chroma,
     is_colab_environment,
 )
 from src.data.cap_checkpoint import atomic_replace, atomic_write_json
@@ -185,7 +182,7 @@ def main(
     """Stage 3: index verified chunk caches. max_workers and portion_size are accepted for
     backward compatibility and ignored: this stage no longer downloads or chunks."""
     print("\n" + "=" * 78)
-    print(f"  BUILDING LEXAGENT v3.0 PRIMARY CAP DATABASE (STAGE 3: EMBEDDING / INDEXING)")
+    print("  BUILDING LEXAGENT v3.0 PRIMARY CAP DATABASE (STAGE 3: EMBEDDING / INDEXING)")
     print(f"  Selection Mode: '{volumes_mode}'")
     print(f"  Checkpoint Resume: {'ACTIVE' if resume and not overwrite else 'DISABLED (Fresh Build)'}")
     print("=" * 78)

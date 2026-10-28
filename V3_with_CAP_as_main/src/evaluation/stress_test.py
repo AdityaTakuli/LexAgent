@@ -11,10 +11,7 @@ citations directly into the Citation Confidence Engine (CCE) verifier:
   6. Real off-corpus: Real landmark case outside covered volumes (Expected: UNVERIFIABLE)
 """
 
-import os
-import sys
 import time
-import json
 from typing import List, Dict, Any, Optional
 
 from src.data.corpus_schema import CitationRecord

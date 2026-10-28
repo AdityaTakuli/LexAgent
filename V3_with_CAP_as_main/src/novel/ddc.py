@@ -1,8 +1,6 @@
 # LexAgent v3.0 | ddc.py
 """Dynamic Debate Controller (DDC) — Adaptive debate termination mechanism."""
 
-import os
-import sys
 
 from config import (
     DDC_MAX_ROUNDS, DDC_CCS_CONTINUE_THRESH, DDC_MIN_GAPS_TO_CONTINUE,

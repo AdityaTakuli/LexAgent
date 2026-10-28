@@ -28,11 +28,10 @@ Two policies (config.CCE_POLICY):
 """
 
 import os
-import sys
 import json
 import pickle
 import re
-from typing import Optional, Tuple, List, Dict, Any
+from typing import Optional, Tuple, Dict
 
 try:
     from fuzzywuzzy import fuzz
@@ -59,7 +58,6 @@ from config import (
     CCS_VERIFIED_THRESHOLD,
     CCS_UNCERTAIN_THRESHOLD,
     TAU_ACCEPTANCE_THRESHOLD,
-    CCE_HOLDING_SEM_THRESHOLD,
     CCE_FUZZY_THRESHOLD_RATIO,
     CASE_CATALOG_PATH,
     CCE_GATE_PATH,

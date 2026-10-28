@@ -1,9 +1,7 @@
 # LexAgent v3.0 | adaptive_memory.py
 """Adaptive Memory: Cross-session citation risk tracking + verdict caching."""
 
-import os
 import re
-import sys
 import json
 import hashlib
 from datetime import datetime

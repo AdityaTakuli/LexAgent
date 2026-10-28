@@ -12,7 +12,7 @@ import json
 import warnings
 import logging
 import argparse
-from typing import List, Dict, Any, Optional
+from typing import List, Any, Optional
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["TRANSFORMERS_VERBOSITY"] = "error"
@@ -40,7 +40,6 @@ except ImportError:
     util = None
 
 from config import (
-    CHROMA_CORPUS_PATH,
     DRIVE_CHROMA_CORPUS_PATH,
     LOCAL_CHROMA_CORPUS_PATH,
     BM25_INDEX_PATH,
@@ -56,7 +55,7 @@ from src.novel.cce import CitationConfidenceEngine
 from src.novel.ddc import DynamicDebateController
 from src.novel.adaptive_memory import AdaptiveMemory
 from src.graph.lexagent_graph import build_lexagent_graph
-from experiments.benchmark_cases import BENCHMARK_30_CASES, BENCHMARK_100_CASES, get_benchmark_cases
+from experiments.benchmark_cases import get_benchmark_cases
 
 
 def silence_all_logs():

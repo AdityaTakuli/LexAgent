@@ -6,9 +6,8 @@ across semantically paraphrased query pairs.
 """
 
 import os
-import sys
 import pickle
-from typing import List, Dict, Any, Optional
+from typing import List, Optional
 
 try:
     from fuzzywuzzy import fuzz
